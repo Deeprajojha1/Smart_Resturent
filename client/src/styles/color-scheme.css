@@ -1,0 +1,93 @@
+/* Enhanced Color Scheme for Restaurant Landing - Warm Food Palette */
+
+:root {
+  --spice-orange: #F97316;
+  --spice-orange-dark: #EA580C;
+  --spice-orange-light: #FDBA74;
+  --fire-red: #EF4444;
+  --fire-red-dark: #DC2626;
+  --fire-red-light: #FCA5A5;
+  --golden-amber: #F59E0B;
+  --golden-amber-light: #FCD34D;
+  --emerald-green: #10B981;
+  --cream-gold: #FCD34D;
+  --night-black: #0F0F23;
+  --glass-white: rgba(255, 255, 255, 0.1);
+}
+
+.bg-food-gradient {
+  background: linear-gradient(135deg, var(--spice-orange), var(--golden-amber), var(--fire-red));
+}
+
+.bg-warm-gradient {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1));
+}
+
+/* Text & Border */
+.text-spice { color: var(--spice-orange); }
+.text-fire { color: var(--fire-red); }
+.text-golden { color: var(--golden-amber); }
+.text-emerald { color: var(--emerald-green); }
+
+.border-spice { border-color: var(--spice-orange); }
+.shadow-spice { box-shadow: 0 10px 30px rgba(249, 115, 22, 0.4); }
+.shadow-fire { box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); }
+.shadow-golden { box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4); }
+
+/* Buttons */
+.btn-spice {
+  @apply bg-spice-orange hover:bg-spice-orange-dark text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-spice hover:-translate-y-1;
+}
+
+.btn-fire {
+  @apply bg-fire-red hover:bg-fire-red-dark text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-fire hover:-translate-y-1;
+}
+
+.btn-golden {
+  @apply bg-golden-amber hover:bg-golden-amber-dark text-white/90 font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-golden hover:-translate-y-1;
+}
+
+/* Cards */
+.card-food {
+  @apply bg-gradient-to-br from-spice-orange/5 to-fire-red/5 border border-spice-orange/20 backdrop-blur-sm rounded-2xl p-6 shadow-xl;
+}
+
+.card-warm {
+  @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl;
+}
+
+/* Badges */
+.badge-spice {
+  @apply inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-spice-orange/20 text-spice-orange border border-spice-orange/40 hover:bg-spice-orange/30 transition-all;
+}
+
+/* Gradients */
+.gradient-spice {
+  @apply bg-gradient-to-r from-spice-orange via-golden-amber to-fire-red bg-clip-text text-transparent;
+}
+
+.gradient-fire {
+  @apply bg-gradient-to-r from-fire-red via-spice-orange to-golden-amber bg-clip-text text-transparent;
+}
+
+/* Hover Effects */
+.hover-glow-spice {
+  @apply transition-shadow duration-500 hover:shadow-spice;
+}
+
+.hover-glow-fire {
+  @apply transition-shadow duration-500 hover:shadow-fire;
+}
+
+/* Dividers */
+.divider-warm {
+  @apply h-px bg-gradient-to-r from-transparent via-spice-orange/50 to-transparent my-12;
+}
+
+/* Responsive utilities preserved */
+@media (max-width: 640px) {
+  :root {
+    --shadow-size: 0 8px 20px;
+  }
+}
+
