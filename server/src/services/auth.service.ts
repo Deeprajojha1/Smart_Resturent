@@ -43,6 +43,7 @@ export const register = async (
       name: user.name,
       picture: user.picture,
       phoneNumber: user.phoneNumber,
+      role: user.role,
     },
   };
 };
@@ -75,6 +76,7 @@ export const emailLogin = async (email: string, password: string) => {
       name: user.name,
       picture: user.picture,
       phoneNumber: user.phoneNumber,
+      role: user.role,
     },
   };
 };
@@ -122,6 +124,7 @@ export const googleLogin = async (credential: string) => {
       name: user.name,
       picture: user.picture,
       phoneNumber: user.phoneNumber,
+      role: user.role,
     },
   };
 };
@@ -140,6 +143,7 @@ export const getUserProfile = async (userId: string) => {
     name: user.name,
     picture: user.picture,
     phoneNumber: user.phoneNumber,
+    role: user.role,
     createdAt: user.createdAt,
     lastLogin: user.lastLogin,
   };

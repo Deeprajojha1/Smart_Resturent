@@ -16,7 +16,8 @@ router.post("/login", loginUser);
 router.post("/google", googleAuth);
 
 // Protected routes (auth required)
-router.get("/me", authenticate, getMe);
+// router.get("/me", authenticate, getMe);
+router.get("/profile", authenticate, getMe);
 router.post("/logout", authenticate, logout);
 
 export default router;

@@ -9,7 +9,7 @@ if (!jwtSecret) {
 
 export const generateToken = (user: IUser) => {
   return jwt.sign(
-    { id: user._id, email: user.email },
+    { id: user._id, email: user.email, role: user.role },
     jwtSecret,
     { expiresIn: "7d" }
   );

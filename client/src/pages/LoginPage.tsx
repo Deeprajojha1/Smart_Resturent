@@ -9,6 +9,19 @@ import { toast } from "react-hot-toast";
 import { googleAuth, loginUser, registerUser } from "../store/authSlice";
 import "../styles/LoginPage.css";
 
+const roleToPath: Record<string, string> = {
+  admin: "/admin",
+  manager: "/manager",
+  cashier: "/cashier",
+  inventory: "/inventory",
+  vendor: "/vendor",
+};
+
+const getRolePath = (role?: string) => {
+  if (!role) return "/";
+  return roleToPath[role] ?? "/";
+};
+
 const LoginPage = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -30,7 +43,7 @@ const LoginPage = () => {
       }
       (async () => {
         try {
-          await dispatch(
+          const result = await dispatch(
             registerUser({
               name,
               email,
@@ -39,7 +52,7 @@ const LoginPage = () => {
             })
           ).unwrap();
           toast.success("Account created successfully.");
-          navigate("/");
+          navigate(getRolePath(result.user.role));
         } catch (error) {
           toast.error(
             error instanceof Error ? error.message : "Registration failed."
@@ -57,9 +70,9 @@ const LoginPage = () => {
     }
     (async () => {
       try {
-        await dispatch(loginUser({ email, password })).unwrap();
+        const result = await dispatch(loginUser({ email, password })).unwrap();
         toast.success("Logged in successfully.");
-        navigate("/");
+        navigate(getRolePath(result.user.role));
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Login failed.");
       } finally {
@@ -83,9 +96,9 @@ const LoginPage = () => {
 
     (async () => {
     try {
-      await dispatch(googleAuth({ credential })).unwrap();
+      const result = await dispatch(googleAuth({ credential })).unwrap();
       toast.success("Logged in successfully.");
-      navigate("/");
+      navigate(getRolePath(result.user.role));
     } catch {
       toast.error("Google login failed.");
     }

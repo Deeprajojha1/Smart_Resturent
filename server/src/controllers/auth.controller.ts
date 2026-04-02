@@ -6,12 +6,13 @@ type AuthError = Error & { statusCode?: number };
 interface AuthenticatedRequest extends Request {
   user?: {
     _id: string;
+    role?: string;
   };
 }
 
 const tokenCookieOptions = {
   httpOnly: true,
-  sameSite: "lax" as const,
+  sameSite: "strict" as const,
   secure: process.env.NODE_ENV === "production",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };

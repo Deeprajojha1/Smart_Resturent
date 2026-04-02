@@ -6,6 +6,7 @@ export type AuthUser = {
   name: string;
   picture?: string;
   phoneNumber?: string;
+  role?: "cashier" | "manager" | "admin" | "inventory" | "vendor";
 };
 
 export type AuthResponse = {
@@ -39,7 +40,7 @@ const googleLogin = async (credential: string) => {
 };
 
 const getMe = async () => {
-  const response = await API.get("/auth/me");
+  const response = await API.get("/auth/profile");
   return response.data.data as AuthUser;
 };
 
