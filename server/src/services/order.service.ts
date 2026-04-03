@@ -89,7 +89,7 @@ export const getOrderAnalyticsService = async (requester: Requester) => {
     { $match: { restaurantId } },
     {
       $group: {
-        _id: null,
+        _id: "$restaurantId",
         totalRevenue: { $sum: "$totalAmount" },
         totalOrders: { $sum: 1 },
         avgOrderValue: { $avg: "$totalAmount" },

@@ -4,6 +4,7 @@ import {
   deleteRestaurantService,
   getAllRestaurantsService,
   getMyRestaurantService,
+  getMyRestaurantByIdService,
   updateRestaurantService,
 } from "../services/restaurant.service";
 
@@ -59,6 +60,28 @@ export const getMyRestaurant = async (
     }
 
     const restaurant = await getMyRestaurantService(req.user._id);
+    return res.json({ success: true, data: restaurant });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getMyRestaurantById = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const restaurantId = String(req.params.id);
+    const restaurant = await getMyRestaurantByIdService(
+      req.user._id,
+      restaurantId,
+      req.user.role ?? ""
+    );
     return res.json({ success: true, data: restaurant });
   } catch (error) {
     return next(error);

@@ -49,7 +49,30 @@ export const getMyRestaurantService = async (userId: string) => {
     return Restaurant.findById(user.restaurantId);
   }
 
-  return Restaurant.findOne({ owner: userId });
+  return null;
+};
+
+export const getMyRestaurantByIdService = async (
+  userId: string,
+  restaurantId: string,
+  role: string
+) => {
+  if (role === "admin") {
+    return Restaurant.findById(restaurantId);
+  }
+
+  const user = await User.findById(userId).select("restaurantId");
+  if (!user?.restaurantId) {
+    return null;
+  }
+
+  if (String(user.restaurantId) !== String(restaurantId)) {
+    const error = new Error("Not allowed");
+    (error as Error & { statusCode?: number }).statusCode = 403;
+    throw error;
+  }
+
+  return Restaurant.findById(restaurantId);
 };
 
 export const updateRestaurantService = async (
