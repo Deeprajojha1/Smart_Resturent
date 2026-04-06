@@ -22,3 +22,11 @@ coverage/
 
 .vscode/
 .idea/
+
+# Backend TS-only source (ignore accidental JS emits in source tree)
+server/server.js
+server/src/**/*.js
+server/src/**/*.js.map
+
+# Local DBML schema (keep local only)
+schema.dbml

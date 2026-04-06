@@ -243,7 +243,7 @@ export const generatePayslipPdfService = async (
   const doc = new PDFDocument({ size: "A4", margin: 50 });
   const buffers: Buffer[] = [];
 
-  doc.on("data", (chunk) => buffers.push(chunk));
+  doc.on("data", (chunk: Buffer) => buffers.push(chunk));
 
   doc.fontSize(18).text("Payslip", { align: "center" });
   doc.moveDown();

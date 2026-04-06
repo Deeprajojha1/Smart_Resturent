@@ -1,4 +1,4 @@
-import { geminiModel } from "./gemini.client";
+import { generateWithGemini } from "./gemini.client";
 
 export type InsightPayload = {
   type: "warning" | "info" | "profit";
@@ -24,6 +24,65 @@ type InsightsInput = {
     unit: string;
     lowStockThreshold: number;
   }>;
+};
+
+const buildFallbackInsights = (data: InsightsInput): InsightPayload[] => {
+  const insights: InsightPayload[] = [];
+  const profit = data.revenue.totalRevenue - data.expenses.totalExpense;
+  const margin =
+    data.revenue.totalRevenue > 0
+      ? (profit / data.revenue.totalRevenue) * 100
+      : 0;
+
+  if (profit < 0) {
+    insights.push({
+      type: "warning",
+      message: `You are running at a loss of ${Math.abs(profit).toFixed(2)}. Review high-cost categories and reduce waste immediately.`,
+    });
+  } else {
+    insights.push({
+      type: "profit",
+      message: `Estimated net profit is ${profit.toFixed(2)} with a margin of ${margin.toFixed(1)}%.`,
+    });
+  }
+
+  if (data.revenue.totalOrders > 0) {
+    insights.push({
+      type: "info",
+      message: `Average order value is ${data.revenue.avgOrderValue.toFixed(2)} across ${data.revenue.totalOrders} orders.`,
+    });
+  } else {
+    insights.push({
+      type: "warning",
+      message: "No orders found in current dataset. Check order sync or date coverage.",
+    });
+  }
+
+  if (data.topDishes.length) {
+    const best = data.topDishes[0];
+    insights.push({
+      type: "profit",
+      message: `Top-selling item is ${best._id} (${best.totalSold} sold). Consider bundling or promoting it in peak hours.`,
+    });
+  }
+
+  if (data.lowStockItems.length) {
+    const topLowStock = data.lowStockItems
+      .slice(0, 2)
+      .map((item) => `${item.itemName} (${item.quantity}${item.unit})`)
+      .join(", ");
+    insights.push({
+      type: "warning",
+      message: `Low stock alert: ${topLowStock}. Reorder soon to avoid stockouts.`,
+    });
+  }
+
+  insights.push({
+    type: "info",
+    message: "AI quota was exceeded, so these are rule-based fallback insights.",
+  });
+
+  return insights.slice(0, 5);
 };
 
 const parseInsights = (text: string): InsightPayload[] => {
@@ -88,12 +147,25 @@ Rules:
 ]
 `;
 
-  const result = await geminiModel.generateContent(prompt);
-  const responseText = result.response.text();
-  let insights = parseInsights(responseText);
+  let insights: InsightPayload[] = [];
+
+  try {
+    const responseText = await generateWithGemini(prompt);
+    insights = parseInsights(responseText);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    const isQuotaError =
+      message.includes("429") ||
+      message.toLowerCase().includes("quota exceeded") ||
+      message.toLowerCase().includes("too many requests");
+    if (!isQuotaError) {
+      throw error;
+    }
+    insights = buildFallbackInsights(data);
+  }
 
   if (!insights.length) {
-    insights = [{ type: "info", message: "No insights generated." }];
+    insights = buildFallbackInsights(data);
   }
 
   return insights;

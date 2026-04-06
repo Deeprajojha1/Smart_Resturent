@@ -44,6 +44,7 @@ export const register = async (
       picture: user.picture,
       phoneNumber: user.phoneNumber,
       role: user.role,
+      restaurantId: user.restaurantId,
     },
   };
 };
@@ -77,6 +78,7 @@ export const emailLogin = async (email: string, password: string) => {
       picture: user.picture,
       phoneNumber: user.phoneNumber,
       role: user.role,
+      restaurantId: user.restaurantId,
     },
   };
 };
@@ -125,6 +127,7 @@ export const googleLogin = async (credential: string) => {
       picture: user.picture,
       phoneNumber: user.phoneNumber,
       role: user.role,
+      restaurantId: user.restaurantId,
     },
   };
 };
@@ -144,6 +147,7 @@ export const getUserProfile = async (userId: string) => {
     picture: user.picture,
     phoneNumber: user.phoneNumber,
     role: user.role,
+    restaurantId: user.restaurantId,
     createdAt: user.createdAt,
     lastLogin: user.lastLogin,
   };
