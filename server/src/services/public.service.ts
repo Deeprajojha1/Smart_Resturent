@@ -1,5 +1,6 @@
 import Menu from "../models/Menu.model";
 import Restaurant from "../models/Restaurant.model";
+import Inventory from "../models/Inventory.model";
 
 export const getPublicRestaurantsService = async (options?: {
   search?: string;
@@ -25,5 +26,27 @@ export const getPublicRestaurantsService = async (options?: {
 };
 
 export const getPublicMenuService = async (restaurantId: string) => {
-  return Menu.find({ restaurantId, isAvailable: true }).sort({ category: 1, name: 1 });
+  const menuItems = await Menu.find({ restaurantId, isAvailable: true }).sort({
+    category: 1,
+    name: 1,
+  });
+
+  const menuNames = menuItems.map((item) => item.name);
+  const inventoryDocs = await Inventory.find({
+    restaurantId,
+    itemName: { $in: menuNames },
+  });
+  const inventoryMap = new Map(
+    inventoryDocs.map((doc) => [doc.itemName, doc])
+  );
+
+  return menuItems.map((item) => {
+    const inventoryItem = inventoryMap.get(item.name);
+    const availableQuantity = inventoryItem?.quantity ?? 0;
+    return {
+      ...item.toObject(),
+      availableQuantity,
+      inStock: availableQuantity > 0,
+    };
+  });
 };

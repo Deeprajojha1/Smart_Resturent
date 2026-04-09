@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import Customer from "../models/Customer.model";
+import Inventory from "../models/Inventory.model";
 import Menu from "../models/Menu.model";
 import OnlineOrder from "../models/OnlineOrder.model";
 import User from "../models/User.model";
@@ -51,10 +52,13 @@ const findOrCreateCustomer = async (input: CreateOnlineOrderInput["customer"]) =
     throw error;
   }
 
-  const orFilters = [
-    phone ? { phone } : null,
-    email ? { email } : null,
-  ].filter(Boolean) as Record<string, string>[];
+  const orFilters: Array<{ phone: string } | { email: string }> = [];
+  if (phone) {
+    orFilters.push({ phone });
+  }
+  if (email) {
+    orFilters.push({ email });
+  }
 
   if (orFilters.length) {
     const existing = await Customer.findOne({ $or: orFilters });
@@ -106,6 +110,14 @@ export const createOnlineOrderService = async (data: CreateOnlineOrderInput) => 
   });
 
   const menuMap = new Map(menuDocs.map((doc) => [String(doc._id), doc]));
+  const menuNames = menuDocs.map((doc) => doc.name);
+  const inventoryDocs = await Inventory.find({
+    restaurantId: data.restaurantId,
+    itemName: { $in: menuNames },
+  });
+  const inventoryMap = new Map(
+    inventoryDocs.map((doc) => [doc.itemName, doc])
+  );
 
   let totalAmount = 0;
   const detailedItems = data.items.map((item) => {
@@ -119,6 +131,15 @@ export const createOnlineOrderService = async (data: CreateOnlineOrderInput) => 
     if (!menuItem) {
       const error = new Error("One or more menu items are unavailable.");
       (error as Error & { statusCode?: number }).statusCode = 404;
+      throw error;
+    }
+
+    const inventoryItem = inventoryMap.get(menuItem.name);
+    if (!inventoryItem || inventoryItem.quantity < item.quantity) {
+      const error = new Error(
+        `Insufficient stock for ${menuItem.name}.`
+      );
+      (error as Error & { statusCode?: number }).statusCode = 409;
       throw error;
     }
 
@@ -146,13 +167,14 @@ export const createOnlineOrderService = async (data: CreateOnlineOrderInput) => 
   if (paymentMethod === "online") {
     try {
       const razorpay = getRazorpayClient();
-      razorpayOrder = await razorpay.orders.create({
+      const createdRazorpayOrder = await razorpay.orders.create({
         amount: Math.round(totalAmount * 100),
         currency: "INR",
         receipt: order._id.toString(),
       });
 
-      order.razorpayOrderId = razorpayOrder.id;
+      razorpayOrder = createdRazorpayOrder;
+      order.razorpayOrderId = createdRazorpayOrder.id;
       await order.save();
     } catch (error) {
       order.paymentStatus = "failed";
@@ -190,6 +212,10 @@ export const verifyOnlinePaymentService = async (data: VerifyPaymentInput) => {
     throw error;
   }
 
+  if (order.paymentStatus === "paid") {
+    return order;
+  }
+
   const secret = process.env.RAZORPAY_SECRET;
   if (!secret) {
     throw new Error("RAZORPAY_SECRET is not defined in .env");
@@ -205,6 +231,13 @@ export const verifyOnlinePaymentService = async (data: VerifyPaymentInput) => {
     const error = new Error("Payment verification failed.");
     (error as Error & { statusCode?: number }).statusCode = 400;
     throw error;
+  }
+
+  for (const item of order.items) {
+    await Inventory.updateOne(
+      { restaurantId: order.restaurantId, itemName: item.name },
+      { $inc: { quantity: -item.quantity } }
+    );
   }
 
   order.paymentStatus = "paid";

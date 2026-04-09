@@ -5,7 +5,21 @@ import LoginPage from "./pages/LoginPage";
 import { Navigate } from "react-router-dom";
 import ProtectedRoute from "./customhooks/ProtectedRoute";
 import useCurrentUser from "./customhooks/useCurrentUser";
-import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminLayout from "./components/admin/AdminLayout";
+import DashboardPage from "./pages/admin/DashboardPage";
+import RestaurantsPage from "./pages/admin/RestaurantsPage";
+import MenuPage from "./pages/admin/MenuPage";
+import OrdersPage from "./pages/admin/OrdersPage";
+import OnlineOrdersPage from "./pages/admin/OnlineOrdersPage";
+import InventoryPage from "./pages/admin/InventoryPage";
+import CustomersPage from "./pages/admin/CustomersPage";
+import EmployeesPage from "./pages/admin/EmployeesPage";
+import PayrollPage from "./pages/admin/PayrollPage";
+import ExpensesPage from "./pages/admin/ExpensesPage";
+import AnalyticsPage from "./pages/admin/AnalyticsPage";
+import AIInsightsPage from "./pages/admin/AIInsightsPage";
+import NotificationsPage from "./pages/admin/NotificationsPage";
+import SettingsPage from "./pages/admin/SettingsPage";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import CashierPOS from "./pages/cashier/CashierPOS";
 import InventoryDashboard from "./pages/inventory/InventoryDashboard";
@@ -58,10 +72,26 @@ const App = () => {
           path="/admin"
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
-              <AdminDashboard />
+              <AdminLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="restaurants" element={<RestaurantsPage />} />
+          <Route path="menu" element={<MenuPage />} />
+          <Route path="orders" element={<OrdersPage />} />
+          <Route path="online-orders" element={<OnlineOrdersPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="customers" element={<CustomersPage />} />
+          <Route path="employees" element={<EmployeesPage />} />
+          <Route path="payroll" element={<PayrollPage />} />
+          <Route path="expenses" element={<ExpensesPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="ai-insights" element={<AIInsightsPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
         <Route
           path="/manager"
           element={
