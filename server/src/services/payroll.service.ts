@@ -1,8 +1,10 @@
+import crypto from "crypto";
 import Employee from "../models/Employee.model";
 import Expense from "../models/Expense.model";
 import Payroll from "../models/Payroll.model";
 import User from "../models/User.model";
 import PDFDocument from "pdfkit";
+import { getRazorpayClient } from "../config/razorpay.config";
 
 type Requester = {
   id: string;
@@ -13,6 +15,34 @@ type PayrollQuery = {
   year?: string;
   status?: "pending" | "paid";
   employeeId?: string;
+};
+
+type PayrollPaymentDraft = {
+  requesterId: string;
+  restaurantId: string;
+  payrollId: string;
+  paymentMethod: "card" | "upi";
+  razorpayOrderId: string;
+  expiresAt: number;
+};
+
+type VerifyPayrollPaymentInput = {
+  draftId: string;
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+const payrollPaymentDrafts = new Map<string, PayrollPaymentDraft>();
+
+const cleanExpiredPayrollDrafts = () => {
+  const now = Date.now();
+
+  for (const [draftId, draft] of payrollPaymentDrafts.entries()) {
+    if (draft.expiresAt <= now) {
+      payrollPaymentDrafts.delete(draftId);
+    }
+  }
 };
 
 const getRequesterRestaurantId = async (requesterId: string) => {
@@ -211,6 +241,127 @@ export const paySalaryService = async (
     paymentMethod,
     createdBy: requester.id,
   });
+
+  return payroll;
+};
+
+export const createPayrollPaymentOrderService = async (
+  payrollId: string,
+  paymentMethod: "card" | "upi",
+  requester: Requester
+) => {
+  if (paymentMethod !== "upi" && paymentMethod !== "card") {
+    const error = new Error("Online payroll payment is supported only for UPI or card.");
+    (error as Error & { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+
+  const restaurantId = await getRequesterRestaurantId(requester.id);
+  if (!restaurantId) {
+    const error = new Error("Restaurant not found for user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  const payroll = await Payroll.findOne({ _id: payrollId, restaurantId });
+  if (!payroll) {
+    const error = new Error("Payroll not found.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  if (payroll.status === "paid") {
+    const error = new Error("Payroll already paid.");
+    (error as Error & { statusCode?: number }).statusCode = 409;
+    throw error;
+  }
+
+  cleanExpiredPayrollDrafts();
+
+  const draftId = crypto.randomUUID();
+  const razorpay = getRazorpayClient();
+  const order = await razorpay.orders.create({
+    amount: Math.round(payroll.amount * 100),
+    currency: "INR",
+    receipt: `payroll_${draftId.slice(0, 20)}`,
+  });
+
+  payrollPaymentDrafts.set(draftId, {
+    requesterId: requester.id,
+    restaurantId: String(restaurantId),
+    payrollId,
+    paymentMethod,
+    razorpayOrderId: order.id,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  });
+
+  const razorpayKey = process.env.RAZORPAY_KEY;
+  if (!razorpayKey) {
+    const error = new Error("RAZORPAY_KEY is not defined in .env");
+    (error as Error & { statusCode?: number }).statusCode = 500;
+    throw error;
+  }
+
+  return {
+    draftId,
+    razorpayKey,
+    orderId: order.id,
+    amount: order.amount,
+    currency: order.currency,
+  };
+};
+
+export const verifyPayrollPaymentService = async (
+  payrollId: string,
+  data: VerifyPayrollPaymentInput,
+  requester: Requester
+) => {
+  cleanExpiredPayrollDrafts();
+
+  const draft = payrollPaymentDrafts.get(data.draftId);
+  if (!draft) {
+    const error = new Error("Payment session expired. Please try again.");
+    (error as Error & { statusCode?: number }).statusCode = 410;
+    throw error;
+  }
+
+  if (draft.requesterId !== requester.id) {
+    const error = new Error("Unauthorized payment session.");
+    (error as Error & { statusCode?: number }).statusCode = 403;
+    throw error;
+  }
+
+  if (draft.payrollId !== payrollId) {
+    const error = new Error("Payroll payment mismatch.");
+    (error as Error & { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+
+  if (draft.razorpayOrderId !== data.razorpay_order_id) {
+    const error = new Error("Razorpay order mismatch.");
+    (error as Error & { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+
+  const secret = process.env.RAZORPAY_SECRET;
+  if (!secret) {
+    throw new Error("RAZORPAY_SECRET is not defined in .env");
+  }
+
+  const body = `${data.razorpay_order_id}|${data.razorpay_payment_id}`;
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(body)
+    .digest("hex");
+
+  if (expectedSignature !== data.razorpay_signature) {
+    const error = new Error("Payment verification failed.");
+    (error as Error & { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+
+  const payroll = await paySalaryService(payrollId, requester, draft.paymentMethod);
+  payrollPaymentDrafts.delete(data.draftId);
 
   return payroll;
 };

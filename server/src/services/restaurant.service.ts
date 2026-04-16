@@ -17,7 +17,22 @@ export const createRestaurantService = async (
     owner: ownerId,
   });
 
-  await User.findByIdAndUpdate(ownerId, { restaurantId: restaurant._id });
+  const owner = await User.findById(ownerId).select("restaurantId restaurantIds");
+
+  if (owner) {
+    const nextRestaurantIds = [...(owner.restaurantIds ?? [])];
+    const alreadyAssigned = nextRestaurantIds.some(
+      (item) => String(item) === String(restaurant._id)
+    );
+
+    if (!alreadyAssigned) {
+      nextRestaurantIds.push(restaurant._id);
+    }
+
+    owner.restaurantId = restaurant._id;
+    owner.restaurantIds = nextRestaurantIds;
+    await owner.save();
+  }
 
   return restaurant;
 };

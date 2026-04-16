@@ -1,11 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import {
+  createPayrollPaymentOrderService,
   generatePayrollService,
   generateMonthlyPayrollForAllService,
   generatePayslipPdfService,
   getPayrollAnalyticsService,
   getPayrollsService,
   paySalaryService,
+  verifyPayrollPaymentService,
 } from "../services/payroll.service";
 
 interface AuthenticatedRequest extends Request {
@@ -113,6 +115,51 @@ export const paySalary = async (
       { id: req.user._id },
       paymentMethod ?? "upi"
     );
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const createPayrollPaymentOrder = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const paymentMethod = req.body.paymentMethod as "card" | "upi";
+    const data = await createPayrollPaymentOrderService(
+      String(req.params.id),
+      paymentMethod,
+      { id: req.user._id }
+    );
+
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const verifyPayrollPayment = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const data = await verifyPayrollPaymentService(
+      String(req.params.id),
+      req.body,
+      { id: req.user._id }
+    );
+
     return res.json({ success: true, data });
   } catch (error) {
     return next(error);

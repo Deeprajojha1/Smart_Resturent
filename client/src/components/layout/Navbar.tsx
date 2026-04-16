@@ -58,7 +58,7 @@ const Navbar = () => {
             ))}
           </div>
           <div className="flex items-center gap-3">
-            {user ? (
+            {user && (
               <button
                 type="button"
                 onClick={handleLogout}
@@ -66,18 +66,11 @@ const Navbar = () => {
               >
                 Log Out
               </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate("/authUser")}
-                  className="hidden md:inline-flex rounded-full border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:border-orange-400 hover:text-orange-400 transition-all"
-                >
-                  Log In
-                </button>
-              </>
             )}
-            <GlowButton className="hidden md:inline-flex bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
+            <GlowButton
+              className="hidden md:inline-flex bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+              onClick={() => navigate("/authUser")}
+            >
               Get Started
             </GlowButton>
             <button
@@ -107,7 +100,7 @@ const Navbar = () => {
                 {link.label}
               </a>
             ))}
-            {user ? (
+            {user && (
               <button
                 type="button"
                 className="mt-2 w-full rounded-full border border-white/40 px-4 py-2 text-center text-sm font-semibold text-white hover:border-orange-400 hover:text-orange-400 transition-all"
@@ -118,21 +111,14 @@ const Navbar = () => {
               >
                 Log Out
               </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="mt-2 w-full rounded-full border border-white/40 px-4 py-2 text-center text-sm font-semibold text-white hover:border-orange-400 hover:text-orange-400 transition-all"
-                  onClick={() => {
-                    setIsOpen(false);
-                    navigate("/authUser");
-                  }}
-                >
-                  Log In
-                </button>
-              </>
             )}
-            <GlowButton className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
+            <GlowButton
+              className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+              onClick={() => {
+                setIsOpen(false);
+                navigate("/authUser");
+              }}
+            >
               Get Started
             </GlowButton>
           </div>

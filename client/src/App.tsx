@@ -24,6 +24,7 @@ import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import CashierPOS from "./pages/cashier/CashierPOS";
 import InventoryDashboard from "./pages/inventory/InventoryDashboard";
 import VendorPortal from "./pages/vendor/VendorPortal";
+import ThreeDotsLoader from "./components/common/ThreeDotsLoader";
 
 const roleToPath = {
   admin: "/admin",
@@ -37,7 +38,7 @@ const HomeRoute = () => {
   const { user, loading } = useCurrentUser();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <ThreeDotsLoader fullScreen />;
   }
 
   if (user?.role && roleToPath[user.role]) {
@@ -51,7 +52,7 @@ const LoginRoute = () => {
   const { user, loading } = useCurrentUser();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <ThreeDotsLoader fullScreen />;
   }
 
   if (user?.role && roleToPath[user.role]) {

@@ -1,10 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   addExpenseService,
+  createExpensePaymentOrderService,
   deleteExpenseService,
   getExpenseAnalyticsService,
   getExpensesService,
   getMonthlyExpenseService,
+  verifyExpensePaymentService,
 } from "../services/expense.service";
 
 interface AuthenticatedRequest extends Request {
@@ -24,6 +26,44 @@ export const addExpense = async (
     }
 
     const data = await addExpenseService(req.body, { id: req.user._id });
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const createExpensePaymentOrder = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const data = await createExpensePaymentOrderService(req.body, {
+      id: req.user._id,
+    });
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const verifyExpensePayment = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const data = await verifyExpensePaymentService(req.body, {
+      id: req.user._id,
+    });
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return next(error);

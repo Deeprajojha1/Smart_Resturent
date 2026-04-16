@@ -7,6 +7,7 @@ export type AuthUser = {
   picture?: string;
   phoneNumber?: string;
   role?: "cashier" | "manager" | "admin" | "inventory" | "vendor";
+  restaurantId?: string;
 };
 
 export type AuthResponse = {

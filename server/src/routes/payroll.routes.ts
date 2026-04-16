@@ -1,11 +1,13 @@
 import { Router } from "express";
 import {
+  createPayrollPaymentOrder,
   downloadPayslip,
   generateMonthlyPayroll,
   generatePayroll,
   getPayrollAnalytics,
   getPayrolls,
   paySalary,
+  verifyPayrollPayment,
 } from "../controllers/payroll.controller";
 import authenticate from "../middlewares/auth.middleware";
 import authorize from "../middlewares/authorize.middleware";
@@ -36,6 +38,18 @@ router.get(
   authenticate,
   authorize("manager", "admin"),
   downloadPayslip
+);
+router.post(
+  "/pay/:id/payment-order",
+  authenticate,
+  authorize("manager", "admin"),
+  createPayrollPaymentOrder
+);
+router.post(
+  "/pay/:id/verify-payment",
+  authenticate,
+  authorize("manager", "admin"),
+  verifyPayrollPayment
 );
 router.post("/pay/:id", authenticate, authorize("manager", "admin"), paySalary);
 

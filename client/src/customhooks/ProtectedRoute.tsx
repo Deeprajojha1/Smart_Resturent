@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import useCurrentUser from "./useCurrentUser";
+import ThreeDotsLoader from "../components/common/ThreeDotsLoader";
 
 type ProtectedRouteProps = {
   allowedRoles: Array<"cashier" | "manager" | "admin" | "inventory" | "vendor">;
@@ -11,7 +12,7 @@ const ProtectedRoute = ({ allowedRoles, children }: ProtectedRouteProps) => {
   const { user, loading } = useCurrentUser();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <ThreeDotsLoader fullScreen />;
   }
 
   if (!user) {

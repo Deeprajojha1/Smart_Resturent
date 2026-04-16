@@ -4,6 +4,26 @@ import * as userService from "../services/user.service";
 
 type UserError = Error & { statusCode?: number };
 
+export const getUsers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const users = await userService.getUsers({
+      search: req.query.search ? String(req.query.search) : undefined,
+      role: req.query.role ? String(req.query.role) : undefined,
+      restaurantId: req.query.restaurantId
+        ? String(req.query.restaurantId)
+        : undefined,
+    });
+
+    return res.json({ success: true, data: users });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const updateUserRole = async (
   req: Request,
   res: Response,

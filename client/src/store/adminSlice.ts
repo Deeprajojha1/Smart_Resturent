@@ -10,6 +10,18 @@ type Kpi = {
 
 export type DashboardSummary = {
   kpis: Kpi[];
+  revenueTrend: {
+    _id: { year: number; month: number };
+    total: number;
+    orders: number;
+  }[];
+  expenseTrend: {
+    _id: { year: number; month: number };
+    total: number;
+    entries: number;
+  }[];
+  monthlyRevenue: number;
+  monthlyExpenses: number;
   topDishes: { name: string; totalSold: number }[];
   recentOrders: {
     id: string;
@@ -17,12 +29,31 @@ export type DashboardSummary = {
     totalAmount: number;
     createdAt: string;
   }[];
-  inventoryAlerts: { itemName: string; quantity: number }[];
+  inventoryAlerts: {
+    itemName: string;
+    quantity: number;
+    unit?: string;
+    lowStockThreshold?: number;
+  }[];
   onlineOrders: {
     id: string;
+    customerName?: string;
     status: string;
     totalAmount: number;
     paymentStatus: string;
+  }[];
+  insights: {
+    _id?: string;
+    type: "warning" | "info" | "profit";
+    title?: string;
+    message: string;
+    createdAt?: string;
+  }[];
+  notifications: {
+    type: "warning" | "info" | "profit";
+    message: string;
+    source: "inventory" | "payroll" | "insights";
+    createdAt?: string;
   }[];
 };
 

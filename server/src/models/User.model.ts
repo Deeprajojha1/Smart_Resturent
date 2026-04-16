@@ -9,6 +9,7 @@ export interface IUser extends Document {
   phoneNumber?: string;
   role: "cashier" | "manager" | "admin" | "inventory" | "vendor";
   restaurantId?: mongoose.Types.ObjectId;
+  restaurantIds?: mongoose.Types.ObjectId[];
   lastLogin?: Date;
   createdAt?: Date;
   updatedAt?: Date;
@@ -55,6 +56,12 @@ const userSchema = new mongoose.Schema<IUser>(
       ref: "Restaurant",
       index: true,
     },
+    restaurantIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Restaurant",
+      },
+    ],
     lastLogin: {
       type: Date,
       default: Date.now,
