@@ -21,6 +21,8 @@ import AIInsightsPage from "./pages/admin/AIInsightsPage";
 import NotificationsPage from "./pages/admin/NotificationsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
+import ManagerLayout from "./components/manager/ManagerLayout";
+import ManagerAccessScope from "./components/manager/ManagerAccessScope";
 import CashierPOS from "./pages/cashier/CashierPOS";
 import InventoryDashboard from "./pages/inventory/InventoryDashboard";
 import VendorPortal from "./pages/vendor/VendorPortal";
@@ -97,10 +99,25 @@ const App = () => {
           path="/manager"
           element={
             <ProtectedRoute allowedRoles={["manager", "admin"]}>
-              <ManagerDashboard />
+              <ManagerLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route element={<ManagerAccessScope />}>
+            <Route index element={<Navigate to="/manager/dashboard" replace />} />
+            <Route path="dashboard" element={<ManagerDashboard />} />
+            <Route path="menu" element={<MenuPage />} />
+            <Route path="orders" element={<OrdersPage />} />
+            <Route path="online-orders" element={<OnlineOrdersPage />} />
+            <Route path="inventory" element={<InventoryPage />} />
+            <Route path="customers" element={<CustomersPage />} />
+            <Route path="employees" element={<EmployeesPage />} />
+            <Route path="payroll" element={<PayrollPage />} />
+            <Route path="expenses" element={<ExpensesPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
+          </Route>
+        </Route>
         <Route
           path="/cashier"
           element={

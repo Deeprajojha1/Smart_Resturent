@@ -34,6 +34,11 @@ type Requester = {
   id: string;
 };
 
+type MonthlyOnlineOrderQuery = {
+  month?: string;
+  year?: string;
+};
+
 const getRequesterRestaurantId = async (requesterId: string) => {
   const user = await User.findById(requesterId).select("restaurantId");
   return user?.restaurantId ?? null;
@@ -264,9 +269,13 @@ export const getOnlineOrdersService = async (
   const start = query?.startDate ? new Date(query.startDate) : new Date(0);
   const end = query?.endDate ? new Date(query.endDate) : new Date();
 
+  if (query?.endDate) {
+    end.setDate(end.getDate() + 1);
+  }
+
   const filter: Record<string, unknown> = {
     restaurantId,
-    createdAt: { $gte: start, $lte: end },
+    createdAt: { $gte: start, $lt: end },
   };
 
   if (query?.status) {
@@ -300,4 +309,171 @@ export const updateOnlineOrderStatusService = async (
     { $set: { status } },
     { new: true }
   );
+};
+
+export const getMonthlyOnlineOrderRecordService = async (
+  requester: Requester,
+  query: MonthlyOnlineOrderQuery = {}
+) => {
+  const restaurantId = await getRequesterRestaurantId(requester.id);
+  if (!restaurantId) {
+    const error = new Error("Restaurant not found for user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  const now = new Date();
+  const month = query.month ? Number(query.month) : now.getMonth() + 1;
+  const year = query.year ? Number(query.year) : now.getFullYear();
+
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    const error = new Error("month must be between 1 and 12.");
+    (error as Error & { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+
+  if (!Number.isInteger(year) || year < 2000 || year > 9999) {
+    const error = new Error("year must be a valid 4-digit year.");
+    (error as Error & { statusCode?: number }).statusCode = 400;
+    throw error;
+  }
+
+  // Use half-open interval [start, end) to avoid month boundary overlap.
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 1);
+
+  const [summary] = await OnlineOrder.aggregate<{
+    totalOrders: number;
+    paidOrders: number;
+    cancelledOrders: number;
+    totalRevenue: number;
+    codOrders: number;
+    onlineOrders: number;
+    failedPayments: number;
+  }>([
+    {
+      $match: {
+        restaurantId,
+        createdAt: { $gte: start, $lt: end },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalOrders: { $sum: 1 },
+        paidOrders: {
+          $sum: {
+            $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0],
+          },
+        },
+        cancelledOrders: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0],
+          },
+        },
+        totalRevenue: {
+          $sum: {
+            $cond: [{ $eq: ["$paymentStatus", "paid"] }, "$totalAmount", 0],
+          },
+        },
+        codOrders: {
+          $sum: {
+            $cond: [{ $eq: ["$paymentMethod", "cod"] }, 1, 0],
+          },
+        },
+        onlineOrders: {
+          $sum: {
+            $cond: [{ $eq: ["$paymentMethod", "online"] }, 1, 0],
+          },
+        },
+        failedPayments: {
+          $sum: {
+            $cond: [{ $eq: ["$paymentStatus", "failed"] }, 1, 0],
+          },
+        },
+      },
+    },
+  ]);
+
+  const dailyBreakdown = await OnlineOrder.aggregate<
+    Array<{ day: number; orders: number; revenue: number }>
+  >([
+    {
+      $match: {
+        restaurantId,
+        createdAt: { $gte: start, $lt: end },
+      },
+    },
+    {
+      $group: {
+        _id: { day: { $dayOfMonth: "$createdAt" } },
+        orders: { $sum: 1 },
+        revenue: {
+          $sum: {
+            $cond: [{ $eq: ["$paymentStatus", "paid"] }, "$totalAmount", 0],
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        day: "$_id.day",
+        orders: 1,
+        revenue: 1,
+      },
+    },
+    { $sort: { day: 1 } },
+  ]);
+
+  const topItems = await OnlineOrder.aggregate<
+    Array<{ name: string; quantity: number; revenue: number }>
+  >([
+    {
+      $match: {
+        restaurantId,
+        createdAt: { $gte: start, $lt: end },
+        paymentStatus: "paid",
+      },
+    },
+    { $unwind: "$items" },
+    {
+      $group: {
+        _id: "$items.name",
+        quantity: { $sum: "$items.quantity" },
+        revenue: {
+          $sum: { $multiply: ["$items.quantity", "$items.price"] },
+        },
+      },
+    },
+    { $sort: { quantity: -1 } },
+    { $limit: 10 },
+    {
+      $project: {
+        _id: 0,
+        name: "$_id",
+        quantity: 1,
+        revenue: 1,
+      },
+    },
+  ]);
+
+  const totalOrders = summary?.totalOrders ?? 0;
+  const paidOrders = summary?.paidOrders ?? 0;
+  const totalRevenue = summary?.totalRevenue ?? 0;
+
+  return {
+    month,
+    year,
+    totalOrders,
+    paidOrders,
+    cancelledOrders: summary?.cancelledOrders ?? 0,
+    totalRevenue,
+    avgOrderValue: paidOrders ? Number((totalRevenue / paidOrders).toFixed(2)) : 0,
+    codOrders: summary?.codOrders ?? 0,
+    onlineOrders: summary?.onlineOrders ?? 0,
+    failedPayments: summary?.failedPayments ?? 0,
+    dailyBreakdown,
+    topItems,
+  };
 };

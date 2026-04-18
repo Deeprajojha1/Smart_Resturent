@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiPlusCircle } from "react-icons/fi";
+import { FiLoader, FiPlusCircle, FiTrash2 } from "react-icons/fi";
 import SectionShell from "../../components/admin/SectionShell";
 import ResourceState from "../../components/admin/ResourceState";
 import { useAdminResource } from "../../customhooks/useAdminResource";
@@ -10,6 +10,7 @@ import {
   getExpenses,
   getMonthlyExpenses,
   verifyExpensePayment,
+  deleteExpense,
   type ExpenseInput,
   type OnlineExpenseInput,
 } from "../../services/adminService";
@@ -119,6 +120,7 @@ const ExpensesPage = () => {
     description: "",
   });
   const [creating, setCreating] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
@@ -267,6 +269,26 @@ const ExpensesPage = () => {
       );
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    setDeletingExpenseId(expenseId);
+    setCreateError(null);
+    setCreateSuccess(null);
+
+    try {
+      await deleteExpense(expenseId);
+      setCreateSuccess("Expense deleted successfully.");
+      setRefreshKey((key) => key + 1);
+    } catch (deleteError) {
+      setCreateError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Expense could not be deleted."
+      );
+    } finally {
+      setDeletingExpenseId(null);
     }
   };
 
@@ -472,9 +494,28 @@ const ExpensesPage = () => {
                   </div>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                     <span>{expense.createdBy?.email ?? "No email"}</span>
-                    <span className="capitalize">
-                      {expense.paymentMethod ?? "cash"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="capitalize">
+                        {expense.paymentMethod ?? "cash"}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteExpense(expense._id)}
+                        disabled={deletingExpenseId === expense._id}
+                        className="inline-flex items-center gap-1 rounded-md border border-[#D8C5AF] bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9B3F2C] disabled:opacity-60"
+                      >
+                        {deletingExpenseId === expense._id ? (
+                          <>
+                            <FiLoader className="h-3 w-3 animate-spin" aria-hidden="true" />
+                            Deleting
+                          </>
+                        ) : (
+                          <>
+                            <FiTrash2 className="h-3 w-3" aria-hidden="true" />
+                            Delete
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

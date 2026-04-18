@@ -46,6 +46,15 @@ export type MenuItem = {
   image?: string;
 };
 
+export type MenuItemInput = {
+  name: string;
+  description?: string;
+  price: number;
+  category?: string;
+  isAvailable?: boolean;
+  image?: string;
+};
+
 export type OrderItem = {
   name: string;
   quantity: number;
@@ -73,12 +82,38 @@ export type OnlineOrder = {
   createdAt?: string;
 };
 
+export type MonthlyOnlineOrderRecord = {
+  month: number;
+  year: number;
+  totalOrders: number;
+  paidOrders: number;
+  cancelledOrders: number;
+  totalRevenue: number;
+  avgOrderValue: number;
+  codOrders: number;
+  onlineOrders: number;
+  failedPayments: number;
+  dailyBreakdown: Array<{ day: number; orders: number; revenue: number }>;
+  topItems: Array<{ name: string; quantity: number; revenue: number }>;
+};
+
 export type InventoryItem = {
   _id: string;
   itemName: string;
   quantity: number;
   unit?: string;
   lowStockThreshold?: number;
+};
+
+export type InventoryCreateInput = {
+  itemName: string;
+  quantity: number;
+  unit: string;
+  lowStockThreshold: number;
+};
+
+export type InventoryStockUpdateInput = {
+  quantity: number;
 };
 
 export type Employee = {
@@ -261,11 +296,25 @@ const formatCurrency = (value?: number) =>
 
 const formatNumber = (value?: number) => (value ?? 0).toLocaleString("en-IN");
 
-export const getDashboardApiSummary = async () =>
-  unwrap(await API.get<ApiResponse<DashboardApiSummary>>("/dashboard/summary"));
+export const getDashboardApiSummary = async (params?: {
+  startDate?: string;
+  endDate?: string;
+}) =>
+  unwrap(
+    await API.get<ApiResponse<DashboardApiSummary>>(
+      `/dashboard/summary${buildQuery(params)}`
+    )
+  );
 
-export const getDashboardAnalytics = async () =>
-  unwrap(await API.get<ApiResponse<DashboardAnalytics>>("/dashboard/analytics"));
+export const getDashboardAnalytics = async (params?: {
+  startDate?: string;
+  endDate?: string;
+}) =>
+  unwrap(
+    await API.get<ApiResponse<DashboardAnalytics>>(
+      `/dashboard/analytics${buildQuery(params)}`
+    )
+  );
 
 export const getDashboardSummary = async (params?: {
   startDate?: string;
@@ -279,8 +328,8 @@ export const getDashboardSummary = async (params?: {
     insights,
     notifications,
   ] = await Promise.all([
-    getDashboardApiSummary(),
-    getDashboardAnalytics(),
+    getDashboardApiSummary(params),
+    getDashboardAnalytics(params),
     getOrders(params),
     getOnlineOrders(params),
     getInsights(),
@@ -363,8 +412,16 @@ export const updateRestaurant = async (
   data: Partial<RestaurantInput>
 ) => unwrap(await API.patch<ApiResponse<Restaurant>>(`/restaurants/${id}`, data));
 
+export const deleteRestaurant = async (id: string) =>
+  unwrap(
+    await API.delete<ApiResponse<{ message: string }>>(`/restaurants/${id}`)
+  );
+
 export const getMyRestaurant = async () =>
   unwrap(await API.get<ApiResponse<Restaurant | null>>("/restaurants/me"));
+
+export const getMyRestaurantById = async (id: string) =>
+  unwrap(await API.get<ApiResponse<Restaurant | null>>(`/restaurants/me/${id}`));
 
 export const getUsers = async (params?: AdminQuery) =>
   unwrap(await API.get<ApiResponse<AdminUser[]>>(`/users${buildQuery(params)}`));
@@ -390,6 +447,17 @@ export const assignRestaurantToUser = async (
 export const getMenuItems = async () =>
   unwrap(await API.get<ApiResponse<MenuItem[]>>("/menu"));
 
+export const createMenuItem = async (data: MenuItemInput) =>
+  unwrap(await API.post<ApiResponse<MenuItem>>("/menu", data));
+
+export const updateMenuItem = async (
+  id: string,
+  data: Partial<MenuItemInput>
+) => unwrap(await API.patch<ApiResponse<MenuItem>>(`/menu/${id}`, data));
+
+export const deleteMenuItem = async (id: string) =>
+  unwrap(await API.delete<ApiResponse<{ message: string }>>(`/menu/${id}`));
+
 export const getOrders = async (params?: AdminQuery) =>
   unwrap(await API.get<ApiResponse<PosOrder[]>>(`/orders${buildQuery(params)}`));
 
@@ -407,6 +475,16 @@ export const getOnlineOrders = async (params?: AdminQuery) =>
   unwrap(
     await API.get<ApiResponse<OnlineOrder[]>>(
       `/online-orders${buildQuery(params)}`
+    )
+  );
+
+export const getMonthlyOnlineOrderRecord = async (params?: {
+  month?: number | string;
+  year?: number | string;
+}) =>
+  unwrap(
+    await API.get<ApiResponse<MonthlyOnlineOrderRecord>>(
+      `/online-orders/monthly-record${buildQuery(params)}`
     )
   );
 
@@ -429,6 +507,14 @@ export const getInventoryStats = async () =>
 export const getReorderSuggestions = async () =>
   unwrap(await API.get<ApiResponse<InventoryItem[]>>("/inventory/reorder"));
 
+export const addInventoryItem = async (data: InventoryCreateInput) =>
+  unwrap(await API.post<ApiResponse<InventoryItem>>("/inventory", data));
+
+export const updateInventoryStock = async (
+  id: string,
+  data: InventoryStockUpdateInput
+) => unwrap(await API.patch<ApiResponse<InventoryItem>>(`/inventory/${id}`, data));
+
 export const getEmployees = async () =>
   unwrap(await API.get<ApiResponse<Employee[]>>("/employees"));
 
@@ -445,6 +531,9 @@ export const getExpenses = async (params?: AdminQuery) =>
 
 export const createExpense = async (data: ExpenseInput) =>
   unwrap(await API.post<ApiResponse<Expense>>("/expenses", data));
+
+export const deleteExpense = async (id: string) =>
+  unwrap(await API.delete<ApiResponse<{ message: string }>>(`/expenses/${id}`));
 
 export const createExpensePaymentOrder = async (data: OnlineExpenseInput) =>
   unwrap(await API.post<ApiResponse<ExpensePaymentOrder>>("/expenses/payment-order", data));
@@ -472,6 +561,11 @@ export const generateMonthlyPayroll = async () =>
     await API.post<ApiResponse<MonthlyPayrollGenerationResult>>(
       "/payroll/generate-monthly"
     )
+  );
+
+export const generatePayrollForEmployee = async (employeeId: string) =>
+  unwrap(
+    await API.post<ApiResponse<Payroll>>(`/payroll/generate/${employeeId}`)
   );
 
 export const payPayroll = async (
@@ -505,6 +599,13 @@ export const verifyPayrollPayment = async (
       data
     )
   );
+
+export const downloadPayrollPayslip = async (payrollId: string) => {
+  const response = await API.get(`/payroll/payslip/${payrollId}`, {
+    responseType: "blob",
+  });
+  return response.data as Blob;
+};
 
 export const getInsights = async () =>
   unwrap(await API.get<ApiResponse<Insight[]>>("/insights"));

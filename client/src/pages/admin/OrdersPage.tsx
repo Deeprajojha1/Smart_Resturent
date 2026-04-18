@@ -1,13 +1,34 @@
+import { useEffect, useMemo, useState } from "react";
 import SectionShell from "../../components/admin/SectionShell";
 import ResourceState from "../../components/admin/ResourceState";
 import { useAdminResource } from "../../customhooks/useAdminResource";
 import { getOrders, getOrderAnalytics } from "../../services/adminService";
 
 const OrdersPage = () => {
+  const itemsPerPage = 5;
   const { data: orders, loading, error } = useAdminResource(getOrders);
   const { data: analytics } = useAdminResource(getOrderAnalytics);
+  const [currentPage, setCurrentPage] = useState(1);
   const summary = analytics?.[0];
-  const selectedOrder = orders?.[0];
+
+  const totalPages = Math.max(1, Math.ceil((orders?.length ?? 0) / itemsPerPage));
+
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return (orders ?? []).slice(startIndex, startIndex + itemsPerPage);
+  }, [currentPage, orders]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [orders?.length]);
+
+  const selectedOrder = paginatedOrders[0] ?? orders?.[0];
 
   return (
     <SectionShell title="POS Orders" subtitle="In-House Sales">
@@ -21,7 +42,7 @@ const OrdersPage = () => {
               empty={!orders?.length}
               emptyMessage="No POS orders found."
             />
-            {orders?.map((order) => (
+            {paginatedOrders.map((order) => (
               <div
                 key={order._id}
                 className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] p-3 text-sm"
@@ -38,6 +59,32 @@ const OrdersPage = () => {
                 </div>
               </div>
             ))}
+
+            {!!orders?.length && (
+              <div className="flex items-center justify-between rounded-lg border border-[#EEE4D5] bg-white px-3 py-2 text-sm text-[#6B5C46]">
+                <span>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-md border border-[#E0D5C3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#2A241B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(totalPages, page + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="rounded-md border border-[#E0D5C3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#2A241B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">

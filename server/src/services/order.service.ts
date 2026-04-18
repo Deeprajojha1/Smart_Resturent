@@ -71,9 +71,13 @@ export const getOrdersService = async (
   const start = query.startDate ? new Date(query.startDate) : new Date(0);
   const end = query.endDate ? new Date(query.endDate) : new Date();
 
+  if (query.endDate) {
+    end.setDate(end.getDate() + 1);
+  }
+
   return Order.find({
     restaurantId,
-    createdAt: { $gte: start, $lte: end },
+    createdAt: { $gte: start, $lt: end },
   }).sort({ createdAt: -1 });
 };
 

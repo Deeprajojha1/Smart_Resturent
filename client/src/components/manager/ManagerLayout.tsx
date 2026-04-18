@@ -1,9 +1,9 @@
 import { Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
-import Sidebar from "./Sidebar";
-import Topbar from "./Topbar";
+import ManagerSidebar from "./ManagerSidebar";
+import ManagerTopbar from "./ManagerTopbar";
 
-const AdminLayout = () => {
+const ManagerLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -42,17 +42,17 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F7F1E8] text-[#1C1B16]">
+    <div className="flex min-h-screen bg-[#F4F8F4] text-[#1D2A20]">
       {!isDesktop && sidebarOpen && (
         <button
           type="button"
           aria-label="Close sidebar overlay"
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-10 bg-[#1C1B16]/35 lg:hidden"
+          className="fixed inset-0 z-10 bg-[#1D2A20]/30 lg:hidden"
         />
       )}
 
-      <Sidebar
+      <ManagerSidebar
         isOpen={sidebarOpen}
         isDesktop={isDesktop}
         onToggle={handleToggleSidebar}
@@ -62,7 +62,7 @@ const AdminLayout = () => {
       <div className={`hidden ${sidebarWidth} shrink-0 lg:block`} />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <Topbar
+        <ManagerTopbar
           isDesktop={isDesktop}
           sidebarOpen={sidebarOpen}
           onMenuToggle={handleToggleSidebar}
@@ -75,4 +75,4 @@ const AdminLayout = () => {
   );
 };
 
-export default AdminLayout;
+export default ManagerLayout;

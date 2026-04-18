@@ -20,7 +20,13 @@ export const getDashboardSummary = async (
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const data = await getDashboardSummaryService({ id: req.user._id });
+    const data = await getDashboardSummaryService(
+      { id: req.user._id },
+      {
+        startDate: req.query.startDate ? String(req.query.startDate) : undefined,
+        endDate: req.query.endDate ? String(req.query.endDate) : undefined,
+      }
+    );
     return res.json({ success: true, data });
   } catch (error) {
     return next(error);
@@ -37,7 +43,13 @@ export const getDashboardAnalytics = async (
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const data = await getDashboardAnalyticsService({ id: req.user._id });
+    const data = await getDashboardAnalyticsService(
+      { id: req.user._id },
+      {
+        startDate: req.query.startDate ? String(req.query.startDate) : undefined,
+        endDate: req.query.endDate ? String(req.query.endDate) : undefined,
+      }
+    );
     return res.json({ success: true, data });
   } catch (error) {
     return next(error);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiLoader, FiSave, FiSearch, FiUserPlus } from "react-icons/fi";
 import SectionShell from "../../components/admin/SectionShell";
 import ResourceState from "../../components/admin/ResourceState";
@@ -64,6 +64,7 @@ const createInitialEmployeeCreateForm = (): EmployeeCreateFormState => ({
 });
 
 const EmployeesPage = () => {
+  const itemsPerPage = 5;
   const [refreshKey, setRefreshKey] = useState(0);
   const { user: currentUser } = useCurrentUser();
   const { data: employees, loading, error } = useAdminResource(
@@ -84,6 +85,7 @@ const EmployeesPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const eligibleUsers = (users ?? []).filter(
     (user: AdminUser) =>
@@ -111,27 +113,36 @@ const EmployeesPage = () => {
     return isAssignedHere && !alreadyEmployee;
   });
 
-  const filteredEmployees = (employees ?? []).filter((employee) => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-    const searchableText = [
-      employee.userId?.name,
-      employee.userId?.email,
-      employee.role,
-      String(employee.salary),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    const matchesSearch =
-      !normalizedSearch || searchableText.includes(normalizedSearch);
-    const matchesRole = roleFilter === "all" || employee.role === roleFilter;
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && employee.isActive !== false) ||
-      (statusFilter === "inactive" && employee.isActive === false);
+  const filteredEmployees = useMemo(() => {
+    return (employees ?? []).filter((employee) => {
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      const searchableText = [
+        employee.userId?.name,
+        employee.userId?.email,
+        employee.role,
+        String(employee.salary),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch =
+        !normalizedSearch || searchableText.includes(normalizedSearch);
+      const matchesRole = roleFilter === "all" || employee.role === roleFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && employee.isActive !== false) ||
+        (statusFilter === "inactive" && employee.isActive === false);
 
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [employees, roleFilter, searchTerm, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
+
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredEmployees.slice(startIndex, startIndex + itemsPerPage);
+  }, [currentPage, filteredEmployees]);
 
   useEffect(() => {
     if (!selectedEmployee && employees?.length) {
@@ -139,6 +150,16 @@ const EmployeesPage = () => {
       setForm(createFormState(employees[0]));
     }
   }, [employees, selectedEmployee]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter, statusFilter, refreshKey]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     if (!selectedEmployee || !employees) {
@@ -451,7 +472,7 @@ const EmployeesPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EEE4D5] text-[#2A241B]">
-                  {filteredEmployees.map((employee) => {
+                  {paginatedEmployees.map((employee) => {
                     const isSelected = selectedEmployee?._id === employee._id;
 
                     return (
@@ -478,6 +499,32 @@ const EmployeesPage = () => {
                   })}
                 </tbody>
               </table>
+            )}
+
+            {!!filteredEmployees.length && (
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-[#EEE4D5] bg-white px-3 py-2 text-sm text-[#6B5C46]">
+                <span>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-md border border-[#E0D5C3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#2A241B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(totalPages, page + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="rounded-md border border-[#E0D5C3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#2A241B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

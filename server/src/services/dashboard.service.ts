@@ -7,12 +7,42 @@ type Requester = {
   id: string;
 };
 
+type DashboardQuery = {
+  startDate?: string;
+  endDate?: string;
+};
+
 const getRequesterRestaurantId = async (requesterId: string) => {
   const user = await User.findById(requesterId).select("restaurantId");
   return user?.restaurantId ?? null;
 };
 
-export const getDashboardSummaryService = async (requester: Requester) => {
+const getDateRangeFilter = (query?: DashboardQuery) => {
+  const createdAt: Record<string, Date> = {};
+
+  if (query?.startDate) {
+    const start = new Date(query.startDate);
+    if (!Number.isNaN(start.getTime())) {
+      createdAt.$gte = start;
+    }
+  }
+
+  if (query?.endDate) {
+    const end = new Date(query.endDate);
+    if (!Number.isNaN(end.getTime())) {
+      // Make end date inclusive by moving to next day and using $lt.
+      end.setDate(end.getDate() + 1);
+      createdAt.$lt = end;
+    }
+  }
+
+  return Object.keys(createdAt).length ? { createdAt } : {};
+};
+
+export const getDashboardSummaryService = async (
+  requester: Requester,
+  query?: DashboardQuery
+) => {
   const restaurantId = await getRequesterRestaurantId(requester.id);
   if (!restaurantId) {
     const error = new Error("Restaurant not found for user.");
@@ -20,16 +50,18 @@ export const getDashboardSummaryService = async (requester: Requester) => {
     throw error;
   }
 
+  const dateFilter = getDateRangeFilter(query);
+
   const [revenueAgg, expenseAgg, totalOrders, lowStockCount] = await Promise.all([
     Order.aggregate([
-      { $match: { restaurantId } },
+      { $match: { restaurantId, ...dateFilter } },
       { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } },
     ]),
     Expense.aggregate([
-      { $match: { restaurantId } },
+      { $match: { restaurantId, ...dateFilter } },
       { $group: { _id: null, totalExpense: { $sum: "$amount" } } },
     ]),
-    Order.countDocuments({ restaurantId }),
+    Order.countDocuments({ restaurantId, ...dateFilter }),
     Inventory.countDocuments({
       restaurantId,
       $expr: { $lte: ["$quantity", "$lowStockThreshold"] },
@@ -48,7 +80,10 @@ export const getDashboardSummaryService = async (requester: Requester) => {
   };
 };
 
-export const getDashboardAnalyticsService = async (requester: Requester) => {
+export const getDashboardAnalyticsService = async (
+  requester: Requester,
+  query?: DashboardQuery
+) => {
   const restaurantId = await getRequesterRestaurantId(requester.id);
   if (!restaurantId) {
     const error = new Error("Restaurant not found for user.");
@@ -56,9 +91,11 @@ export const getDashboardAnalyticsService = async (requester: Requester) => {
     throw error;
   }
 
+  const dateFilter = getDateRangeFilter(query);
+
   const [revenueTrend, expenseTrend, topDishes, lowStock] = await Promise.all([
     Order.aggregate([
-      { $match: { restaurantId } },
+      { $match: { restaurantId, ...dateFilter } },
       {
         $group: {
           _id: {
@@ -72,7 +109,7 @@ export const getDashboardAnalyticsService = async (requester: Requester) => {
       { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]),
     Expense.aggregate([
-      { $match: { restaurantId } },
+      { $match: { restaurantId, ...dateFilter } },
       {
         $group: {
           _id: {
@@ -86,7 +123,7 @@ export const getDashboardAnalyticsService = async (requester: Requester) => {
       { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]),
     Order.aggregate([
-      { $match: { restaurantId } },
+      { $match: { restaurantId, ...dateFilter } },
       { $unwind: "$items" },
       {
         $group: {

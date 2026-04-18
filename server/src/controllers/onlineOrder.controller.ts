@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   createOnlineOrderService,
+  getMonthlyOnlineOrderRecordService,
   getOnlineOrdersService,
   updateOnlineOrderStatusService,
   verifyOnlinePaymentService,
@@ -54,6 +55,30 @@ export const getOnlineOrders = async (
         status: req.query.status ? String(req.query.status) : undefined,
         startDate: req.query.startDate ? String(req.query.startDate) : undefined,
         endDate: req.query.endDate ? String(req.query.endDate) : undefined,
+      }
+    );
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getMonthlyOnlineOrderRecord = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const data = await getMonthlyOnlineOrderRecordService(
+      { id: req.user._id },
+      {
+        month: req.query.month ? String(req.query.month) : undefined,
+        year: req.query.year ? String(req.query.year) : undefined,
       }
     );
 

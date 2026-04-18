@@ -20,8 +20,9 @@ import {
 
 type SidebarProps = {
   isOpen: boolean;
-  widthClass: string;
+  isDesktop: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 };
 
 const navItems = [
@@ -41,10 +42,14 @@ const navItems = [
   { label: "Settings", to: "/admin/settings", icon: FiSettings },
 ];
 
-const Sidebar = ({ isOpen, widthClass, onToggle }: SidebarProps) => {
+const Sidebar = ({ isOpen, isDesktop, onToggle, onNavigate }: SidebarProps) => {
+  const desktopWidthClass = isOpen ? "lg:w-64" : "lg:w-20";
+
   return (
     <aside
-      className={`fixed left-0 top-0 z-20 h-screen ${widthClass} border-r border-[#E4DCCF] bg-[#F3ECE1] px-4 py-6 transition-all duration-300`}
+      className={`fixed left-0 top-0 z-20 h-screen w-64 border-r border-[#E4DCCF] bg-[#F3ECE1] px-4 py-6 transition-all duration-300 ${desktopWidthClass} ${
+        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      }`}
     >
       <div
         className={`flex px-2 ${
@@ -68,7 +73,7 @@ const Sidebar = ({ isOpen, widthClass, onToggle }: SidebarProps) => {
           }`}
           aria-label="Toggle sidebar"
         >
-          {isOpen ? <FiChevronsLeft /> : <FiChevronsRight />}
+          {isDesktop ? (isOpen ? <FiChevronsLeft /> : <FiChevronsRight />) : <FiChevronsLeft />}
         </button>
       </div>
 
@@ -79,6 +84,7 @@ const Sidebar = ({ isOpen, widthClass, onToggle }: SidebarProps) => {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 isActive

@@ -11,13 +11,13 @@ import authorize from "../middlewares/authorize.middleware";
 
 const router = Router();
 
-// Inventory team + Admin
-router.post("/", authenticate, authorize("inventory", "admin"), addItem);
+// Inventory team + Manager + Admin
+router.post("/", authenticate, authorize("inventory", "manager", "admin"), addItem);
 
 router.patch(
   "/:id",
   authenticate,
-  authorize("inventory", "admin"),
+  authorize("inventory", "manager", "admin"),
   updateStock
 );
 

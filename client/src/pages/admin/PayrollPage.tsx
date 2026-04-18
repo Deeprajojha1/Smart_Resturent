@@ -1,11 +1,14 @@
-import { useState } from "react";
-import { FiLoader, FiPlusCircle } from "react-icons/fi";
+import { useEffect, useMemo, useState } from "react";
+import { FiDownload, FiLoader, FiPlusCircle } from "react-icons/fi";
 import SectionShell from "../../components/admin/SectionShell";
 import ResourceState from "../../components/admin/ResourceState";
 import { useAdminResource } from "../../customhooks/useAdminResource";
 import {
   createPayrollPaymentOrder,
+  downloadPayrollPayslip,
+  generatePayrollForEmployee,
   generateMonthlyPayroll,
+  getEmployees,
   getPayrollAnalytics,
   getPayrolls,
   payPayroll,
@@ -74,6 +77,7 @@ const loadRazorpayScript = async () => {
 };
 
 const PayrollPage = () => {
+  const itemsPerPage = 5;
   const [refreshKey, setRefreshKey] = useState(0);
   const [creatingPayroll, setCreatingPayroll] = useState(false);
   const [payingPayrollId, setPayingPayrollId] = useState<string | null>(null);
@@ -82,10 +86,32 @@ const PayrollPage = () => {
   >({});
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [generatingForEmployee, setGeneratingForEmployee] = useState(false);
+  const [downloadingPayslipId, setDownloadingPayslipId] = useState<string | null>(null);
 
   const { data: payrolls, loading, error } = useAdminResource(getPayrolls, [refreshKey]);
   const { data: analytics } = useAdminResource(getPayrollAnalytics, [refreshKey]);
+  const { data: employees } = useAdminResource(getEmployees, [refreshKey]);
   const pending = (payrolls ?? []).filter((payroll) => payroll.status === "pending");
+
+  const totalPages = Math.max(1, Math.ceil((payrolls?.length ?? 0) / itemsPerPage));
+
+  const paginatedPayrolls = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return (payrolls ?? []).slice(startIndex, startIndex + itemsPerPage);
+  }, [currentPage, payrolls]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [refreshKey]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const getPaymentMethod = (payrollId: string) =>
     paymentMethodById[payrollId] ?? "upi";
@@ -109,6 +135,56 @@ const PayrollPage = () => {
       );
     } finally {
       setCreatingPayroll(false);
+    }
+  };
+
+  const handleCreatePayrollForEmployee = async () => {
+    if (!selectedEmployeeId) {
+      setCreateError("Please select an employee.");
+      return;
+    }
+
+    setGeneratingForEmployee(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+
+    try {
+      await generatePayrollForEmployee(selectedEmployeeId);
+      setCreateSuccess("Payroll generated for selected employee.");
+      setRefreshKey((key) => key + 1);
+    } catch (generationError) {
+      setCreateError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Payroll could not be generated for employee."
+      );
+    } finally {
+      setGeneratingForEmployee(false);
+    }
+  };
+
+  const handleDownloadPayslip = async (payrollId: string) => {
+    setDownloadingPayslipId(payrollId);
+    setCreateError(null);
+
+    try {
+      const blob = await downloadPayrollPayslip(payrollId);
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `payslip-${payrollId}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setCreateError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : "Payslip could not be downloaded."
+      );
+    } finally {
+      setDownloadingPayslipId(null);
     }
   };
 
@@ -190,23 +266,53 @@ const PayrollPage = () => {
             <h4 className="text-lg font-semibold text-[#2A241B]">
               Monthly Payroll
             </h4>
-            <button
-              onClick={handleCreatePayroll}
-              disabled={creatingPayroll}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#2A241B] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#F7F1E8] disabled:opacity-60"
-            >
-              {creatingPayroll ? (
-                <>
-                  <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Creating
-                </>
-              ) : (
-                <>
-                  <FiPlusCircle className="h-4 w-4" aria-hidden="true" />
-                  Create Payroll
-                </>
-              )}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedEmployeeId}
+                onChange={(event) => setSelectedEmployeeId(event.target.value)}
+                className="rounded-md border border-[#E0D5C3] bg-white px-2 py-1 text-xs text-[#2A241B]"
+              >
+                <option value="">Select employee</option>
+                {(employees ?? []).map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {employee.userId?.name ?? employee.userId?.email ?? employee._id}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={handleCreatePayrollForEmployee}
+                disabled={generatingForEmployee}
+                className="inline-flex items-center gap-2 rounded-lg border border-[#D8C5AF] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#2A241B] disabled:opacity-60"
+              >
+                {generatingForEmployee ? (
+                  <>
+                    <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Generating
+                  </>
+                ) : (
+                  "Generate Employee"
+                )}
+              </button>
+
+              <button
+                onClick={handleCreatePayroll}
+                disabled={creatingPayroll}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#2A241B] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#F7F1E8] disabled:opacity-60"
+              >
+                {creatingPayroll ? (
+                  <>
+                    <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Creating
+                  </>
+                ) : (
+                  <>
+                    <FiPlusCircle className="h-4 w-4" aria-hidden="true" />
+                    Create Payroll
+                  </>
+                )}
+              </button>
+            </div>
           </div>
           {createError && <p className="mt-3 text-sm text-[#9B3F2C]">{createError}</p>}
           {createSuccess && <p className="mt-3 text-sm text-[#3F6F5B]">{createSuccess}</p>}
@@ -229,7 +335,7 @@ const PayrollPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EEE4D5] text-[#2A241B]">
-                  {payrolls.map((payroll) => (
+                  {paginatedPayrolls.map((payroll) => (
                     <tr key={payroll._id}>
                       <td className="py-3 pr-4 font-medium">
                         {payroll.employeeId?.userId?.name ?? "-"}
@@ -280,15 +386,63 @@ const PayrollPage = () => {
                             </button>
                           </div>
                         ) : (
-                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#3F6F5B]">
-                            Paid
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#3F6F5B]">
+                              Paid
+                            </span>
+                            <button
+                              onClick={() => handleDownloadPayslip(payroll._id)}
+                              disabled={downloadingPayslipId === payroll._id}
+                              className="inline-flex items-center gap-1 rounded-md border border-[#D8C5AF] bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#2A241B] disabled:opacity-60"
+                            >
+                              {downloadingPayslipId === payroll._id ? (
+                                <>
+                                  <FiLoader
+                                    className="h-3.5 w-3.5 animate-spin"
+                                    aria-hidden="true"
+                                  />
+                                  Downloading
+                                </>
+                              ) : (
+                                <>
+                                  <FiDownload className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Payslip
+                                </>
+                              )}
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            )}
+
+            {!!payrolls?.length && (
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-[#EEE4D5] bg-white px-3 py-2 text-sm text-[#6B5C46]">
+                <span>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-md border border-[#E0D5C3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#2A241B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(totalPages, page + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="rounded-md border border-[#E0D5C3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#2A241B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
