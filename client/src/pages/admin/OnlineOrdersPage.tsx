@@ -66,12 +66,33 @@ const OnlineOrdersPage = () => {
     return Array.from({ length: 6 }, (_, index) => String(currentYear - index));
   }, []);
 
-  const dailyRevenueBars = useMemo(() => {
+  const normalizedDailyBreakdown = useMemo(() => {
+    const toFiniteNumber = (value: unknown) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
     const points = monthlyRecord?.dailyBreakdown ?? [];
+
+    return points
+      .map((point) => {
+        const rawPoint = point as Record<string, unknown>;
+        return {
+          day: toFiniteNumber(rawPoint.day),
+          orders: toFiniteNumber(rawPoint.orders ?? rawPoint.totalOrders ?? rawPoint.count),
+          revenue: toFiniteNumber(rawPoint.revenue ?? rawPoint.totalRevenue ?? rawPoint.total),
+        };
+      })
+      .filter((point) => point.day > 0)
+      .sort((a, b) => a.day - b.day);
+  }, [monthlyRecord]);
+
+  const dailyRevenueBars = useMemo(() => {
+    const points = normalizedDailyBreakdown;
     const getPointValue = (point: (typeof points)[number]) =>
       chartMetric === "revenue" ? point.revenue : point.orders;
 
-    const maxRevenue = Math.max(
+    const maxMetricValue = Math.max(
       ...points.map((point) => getPointValue(point)),
       1
     );
@@ -79,9 +100,12 @@ const OnlineOrdersPage = () => {
     return points.map((point) => ({
       ...point,
       metricValue: getPointValue(point),
-      heightPercent: Math.max(6, Math.round((getPointValue(point) / maxRevenue) * 100)),
+      heightPercent: Math.max(
+        6,
+        Math.round((getPointValue(point) / maxMetricValue) * 100)
+      ),
     }));
-  }, [chartMetric, monthlyRecord]);
+  }, [chartMetric, normalizedDailyBreakdown]);
 
   const handleUpdateStatus = async (orderId: string) => {
     const status = statusByOrderId[orderId];
@@ -232,7 +256,7 @@ const OnlineOrdersPage = () => {
                     Daily Breakdown
                   </h5>
                   <div className="mt-3 space-y-2">
-                    {monthlyRecord.dailyBreakdown.slice(0, 10).map((point) => (
+                    {normalizedDailyBreakdown.slice(0, 10).map((point) => (
                       <div
                         key={point.day}
                         className="flex items-center justify-between rounded-lg border border-[#EEE4D5] bg-white px-3 py-2 text-sm"
@@ -243,7 +267,7 @@ const OnlineOrdersPage = () => {
                         </span>
                       </div>
                     ))}
-                    {!monthlyRecord.dailyBreakdown.length && (
+                    {!normalizedDailyBreakdown.length && (
                       <p className="text-sm text-[#8A7A62]">No day-wise data.</p>
                     )}
                   </div>

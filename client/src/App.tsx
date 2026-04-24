@@ -25,6 +25,7 @@ import ManagerLayout from "./components/manager/ManagerLayout";
 import ManagerAccessScope from "./components/manager/ManagerAccessScope";
 import CashierPOS from "./pages/cashier/CashierPOS";
 import InventoryDashboard from "./pages/inventory/InventoryDashboard";
+import InventoryLayout from "./components/inventory/InventoryLayout";
 import VendorPortal from "./pages/vendor/VendorPortal";
 import ThreeDotsLoader from "./components/common/ThreeDotsLoader";
 
@@ -33,6 +34,7 @@ const roleToPath = {
   manager: "/manager",
   cashier: "/cashier",
   inventory: "/inventory",
+  inventory_head: "/inventory",
   vendor: "/vendor",
 } as const;
 
@@ -129,11 +131,13 @@ const App = () => {
         <Route
           path="/inventory"
           element={
-            <ProtectedRoute allowedRoles={["inventory", "admin"]}>
-              <InventoryDashboard />
+            <ProtectedRoute allowedRoles={["inventory", "inventory_head", "admin"]}>
+              <InventoryLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<InventoryDashboard />} />
+        </Route>
         <Route
           path="/vendor"
           element={

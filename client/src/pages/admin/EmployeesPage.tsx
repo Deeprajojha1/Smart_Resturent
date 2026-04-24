@@ -35,6 +35,7 @@ const roles: Array<NonNullable<EmployeeUpdateInput["role"]>> = [
   "manager",
   "admin",
   "inventory",
+  "inventory_head",
   "vendor",
 ];
 

@@ -3,6 +3,7 @@ import authenticate from "../middlewares/auth.middleware";
 import authorize from "../middlewares/authorize.middleware";
 import {
   assignRestaurantToUser,
+  deleteEmployeeByUser,
   getUsers,
   updateUserRole,
 } from "../controllers/user.controller";
@@ -22,5 +23,8 @@ router.patch(
   authorize("admin"),
   assignRestaurantToUser
 );
+
+// Admin-only: delete employee record for a user in the admin's restaurant
+router.delete("/:id/employee", authenticate, authorize("admin"), deleteEmployeeByUser);
 
 export default router;

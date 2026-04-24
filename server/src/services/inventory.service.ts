@@ -3,6 +3,15 @@ import User from "../models/User.model";
 
 type InventoryInput = {
   itemName: string;
+  itemType?: "raw" | "prepared";
+  quantity: number;
+  unit: string;
+  lowStockThreshold: number;
+};
+
+type InventoryDetailsUpdateInput = {
+  itemName: string;
+  itemType?: "raw" | "prepared";
   quantity: number;
   unit: string;
   lowStockThreshold: number;
@@ -58,6 +67,61 @@ export const updateStockService = async (
   return item;
 };
 
+export const updateInventoryItemDetailsService = async (
+  id: string,
+  data: InventoryDetailsUpdateInput,
+  requester: Requester
+) => {
+  const restaurantId = await getRequesterRestaurantId(requester.id);
+  if (!restaurantId) {
+    const error = new Error("Restaurant not found for user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  const item = await Inventory.findOneAndUpdate(
+    { _id: id, restaurantId },
+    {
+      itemName: data.itemName,
+      itemType: data.itemType ?? "raw",
+      quantity: data.quantity,
+      unit: data.unit,
+      lowStockThreshold: data.lowStockThreshold,
+    },
+    { new: true }
+  );
+
+  if (!item) {
+    const error = new Error("Item not found");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  return item;
+};
+
+export const deleteInventoryItemService = async (
+  id: string,
+  requester: Requester
+) => {
+  const restaurantId = await getRequesterRestaurantId(requester.id);
+  if (!restaurantId) {
+    const error = new Error("Restaurant not found for user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  const deleted = await Inventory.findOneAndDelete({ _id: id, restaurantId });
+
+  if (!deleted) {
+    const error = new Error("Item not found");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  return { message: "Inventory item deleted successfully." };
+};
+
 export const getLowStockService = async (requester: Requester) => {
   const restaurantId = await getRequesterRestaurantId(requester.id);
   if (!restaurantId) {
@@ -70,6 +134,17 @@ export const getLowStockService = async (requester: Requester) => {
     restaurantId,
     $expr: { $lte: ["$quantity", "$lowStockThreshold"] },
   });
+};
+
+export const getInventoryItemsService = async (requester: Requester) => {
+  const restaurantId = await getRequesterRestaurantId(requester.id);
+  if (!restaurantId) {
+    const error = new Error("Restaurant not found for user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  return Inventory.find({ restaurantId }).sort({ itemName: 1, createdAt: -1 });
 };
 
 export const getInventoryStatsService = async (requester: Requester) => {

@@ -1,35 +1,74 @@
-import { useState } from "react";
-import { FiLoader, FiPlusCircle, FiSave } from "react-icons/fi";
+import { useMemo, useState } from "react";
+import { FiEdit2, FiLoader, FiPlusCircle, FiSave, FiTrash2, FiX } from "react-icons/fi";
 import SectionShell from "../../components/admin/SectionShell";
 import ResourceState from "../../components/admin/ResourceState";
 import { useAdminResource } from "../../customhooks/useAdminResource";
 import {
   addInventoryItem,
+  deleteInventoryItem,
+  getInventoryItems,
   getInventoryStats,
   getLowStock,
   getReorderSuggestions,
+  updateInventoryItem,
   updateInventoryStock,
   type InventoryCreateInput,
+  type InventoryItem,
 } from "../../services/adminService";
+
+const RAW_UNIT_OPTIONS: string[] = ["kg", "g", "ltr", "ml", "pcs"];
+const PREPARED_UNIT_OPTIONS: string[] = ["portion", "plate", "pcs", "box", "pack"];
 
 const InventoryPage = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [stockAdjustments, setStockAdjustments] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     itemName: "",
+    itemType: "raw" as "raw" | "prepared",
     quantity: "",
     unit: "kg",
     lowStockThreshold: "",
   });
 
   const { data: lowStock, loading, error } = useAdminResource(getLowStock, [refreshKey]);
+  const {
+    data: inventoryItems,
+    loading: inventoryLoading,
+    error: inventoryError,
+  } = useAdminResource(getInventoryItems, [refreshKey]);
   const { data: reorder } = useAdminResource(getReorderSuggestions, [refreshKey]);
   const { data: stats } = useAdminResource(getInventoryStats, [refreshKey]);
   const totals = stats?.[0];
+
+  const rawItems = useMemo(
+    () => (inventoryItems ?? []).filter((item) => (item.itemType ?? "raw") === "raw"),
+    [inventoryItems]
+  );
+
+  const preparedItems = useMemo(
+    () =>
+      (inventoryItems ?? []).filter((item) => (item.itemType ?? "raw") === "prepared"),
+    [inventoryItems]
+  );
+
+  const unitOptions = useMemo(() => {
+    const baseOptions =
+      form.itemType === "prepared"
+        ? [...PREPARED_UNIT_OPTIONS]
+        : [...RAW_UNIT_OPTIONS];
+
+    if (form.unit && !baseOptions.includes(form.unit)) {
+      baseOptions.unshift(form.unit);
+    }
+
+    return baseOptions;
+  }, [form.itemType, form.unit]);
 
   const handleCreateItem = async () => {
     const quantity = Number(form.quantity);
@@ -62,23 +101,95 @@ const InventoryPage = () => {
     try {
       const payload: InventoryCreateInput = {
         itemName: form.itemName.trim(),
+        itemType: form.itemType,
         quantity,
         unit: form.unit.trim(),
         lowStockThreshold,
       };
 
-      await addInventoryItem(payload);
-      setSuccessMessage("Inventory item added successfully.");
-      setForm({ itemName: "", quantity: "", unit: "kg", lowStockThreshold: "" });
+      if (editingItemId) {
+        await updateInventoryItem(editingItemId, payload);
+        setSuccessMessage("Inventory item updated successfully.");
+      } else {
+        await addInventoryItem(payload);
+        setSuccessMessage("Inventory item added successfully.");
+      }
+
+      setForm({
+        itemName: "",
+        itemType: "raw",
+        quantity: "",
+        unit: "kg",
+        lowStockThreshold: "",
+      });
+      setEditingItemId(null);
       setRefreshKey((key) => key + 1);
     } catch (creationError) {
       setErrorMessage(
         creationError instanceof Error
           ? creationError.message
-          : "Inventory item could not be added."
+          : editingItemId
+            ? "Inventory item could not be updated."
+            : "Inventory item could not be added."
       );
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleEditRawItem = (item: InventoryItem) => {
+    setEditingItemId(item._id);
+    setForm({
+      itemName: item.itemName,
+      itemType: (item.itemType ?? "raw") as "raw" | "prepared",
+      quantity: String(item.quantity ?? 0),
+      unit: item.unit ?? "kg",
+      lowStockThreshold: String(item.lowStockThreshold ?? 0),
+    });
+    setErrorMessage(null);
+    setSuccessMessage("Editing mode enabled for selected raw item.");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setForm({
+      itemName: "",
+      itemType: "raw",
+      quantity: "",
+      unit: "kg",
+      lowStockThreshold: "",
+    });
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  const handleDeleteRawItem = async (itemId: string) => {
+    const shouldDelete = window.confirm("Delete this raw item?");
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingItemId(itemId);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      await deleteInventoryItem(itemId);
+      setSuccessMessage("Raw item deleted successfully.");
+
+      if (editingItemId === itemId) {
+        handleCancelEdit();
+      }
+
+      setRefreshKey((key) => key + 1);
+    } catch (deleteError) {
+      setErrorMessage(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Raw item could not be deleted."
+      );
+    } finally {
+      setDeletingItemId(null);
     }
   };
 
@@ -190,13 +301,182 @@ const InventoryPage = () => {
                       </>
                     )}
                   </button>
+                  <button
+                    onClick={() => handleEditRawItem(item)}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#E0D5C3] bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6B5C46]"
+                  >
+                    <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRawItem(item._id)}
+                    disabled={deletingItemId === item._id}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#E8C8BF] bg-[#FFF4EF] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#9B3F2C] disabled:opacity-60"
+                  >
+                    {deletingItemId === item._id ? (
+                      <>
+                        <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        Deleting
+                      </>
+                    ) : (
+                      <>
+                        <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Delete
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <h5 className="font-semibold text-[#2A241B]">Raw Items</h5>
+            <ResourceState
+              loading={inventoryLoading}
+              error={inventoryError || errorMessage}
+              empty={!rawItems.length}
+              emptyMessage="No raw items found."
+            />
+            {rawItems.map((item) => (
+              <div
+                key={`inventory-${item._id}`}
+                className="rounded-lg border border-[#EEE4D5] bg-white p-3 text-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-[#2A241B]">{item.itemName}</span>
+                  <span className="text-[#8A7A62]">
+                    {item.quantity} {item.unit ?? ""} / threshold {item.lowStockThreshold ?? 0}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={stockAdjustments[item._id] ?? ""}
+                    onChange={(event) =>
+                      setStockAdjustments((prev) => ({
+                        ...prev,
+                        [item._id]: event.target.value,
+                      }))
+                    }
+                    placeholder="Adjust (+/-)"
+                    className="w-full rounded-md border border-[#E0D5C3] bg-white px-3 py-1.5 text-xs text-[#2A241B]"
+                  />
+                  <button
+                    onClick={() => handleAdjustStock(item._id)}
+                    disabled={updatingItemId === item._id}
+                    className="inline-flex items-center gap-1 rounded-md bg-[#2A241B] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#F7F1E8] disabled:opacity-60"
+                  >
+                    {updatingItemId === item._id ? (
+                      <>
+                        <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        Saving
+                      </>
+                    ) : (
+                      <>
+                        <FiSave className="h-3.5 w-3.5" aria-hidden="true" />
+                        Update
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <h5 className="font-semibold text-[#2A241B]">Prepared Items</h5>
+            <ResourceState
+              loading={inventoryLoading}
+              error={inventoryError || errorMessage}
+              empty={!preparedItems.length}
+              emptyMessage="No prepared items found."
+            />
+            {preparedItems.map((item) => (
+              <div
+                key={`prepared-${item._id}`}
+                className="rounded-lg border border-[#EEE4D5] bg-white p-3 text-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-[#2A241B]">{item.itemName}</span>
+                  <span className="text-[#8A7A62]">
+                    {item.quantity} {item.unit ?? ""} / threshold {item.lowStockThreshold ?? 0}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={stockAdjustments[item._id] ?? ""}
+                    onChange={(event) =>
+                      setStockAdjustments((prev) => ({
+                        ...prev,
+                        [item._id]: event.target.value,
+                      }))
+                    }
+                    placeholder="Adjust (+/-)"
+                    className="w-full rounded-md border border-[#E0D5C3] bg-white px-3 py-1.5 text-xs text-[#2A241B]"
+                  />
+                  <button
+                    onClick={() => handleAdjustStock(item._id)}
+                    disabled={updatingItemId === item._id}
+                    className="inline-flex items-center gap-1 rounded-md bg-[#2A241B] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#F7F1E8] disabled:opacity-60"
+                  >
+                    {updatingItemId === item._id ? (
+                      <>
+                        <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        Saving
+                      </>
+                    ) : (
+                      <>
+                        <FiSave className="h-3.5 w-3.5" aria-hidden="true" />
+                        Update
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleEditRawItem(item)}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#E0D5C3] bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6B5C46]"
+                  >
+                    <FiEdit2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRawItem(item._id)}
+                    disabled={deletingItemId === item._id}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#E8C8BF] bg-[#FFF4EF] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#9B3F2C] disabled:opacity-60"
+                  >
+                    {deletingItemId === item._id ? (
+                      <>
+                        <FiLoader className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        Deleting
+                      </>
+                    ) : (
+                      <>
+                        <FiTrash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Delete
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         </div>
         <div className="rounded-lg border border-[#F0D2C0] bg-[#FFF7F2] p-6 shadow-sm">
-          <h4 className="text-lg font-semibold text-[#2A241B]">Add Inventory Item</h4>
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-lg font-semibold text-[#2A241B]">
+              {editingItemId ? "Update Inventory Item" : "Add Inventory Item"}
+            </h4>
+            {editingItemId && (
+              <button
+                onClick={handleCancelEdit}
+                className="inline-flex items-center gap-1 rounded-md border border-[#E0D5C3] bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-[#6B5C46]"
+              >
+                <FiX className="h-3.5 w-3.5" aria-hidden="true" />
+                Cancel
+              </button>
+            )}
+          </div>
           <div className="mt-3 grid gap-3">
             <input
               type="text"
@@ -207,6 +487,32 @@ const InventoryPage = () => {
               }
               className="w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-sm text-[#2A241B]"
             />
+            <select
+              value={form.itemType}
+              onChange={(event) =>
+                setForm((prev) => {
+                  const nextType = event.target.value as "raw" | "prepared";
+                  const nextOptions =
+                    nextType === "prepared"
+                      ? PREPARED_UNIT_OPTIONS
+                      : RAW_UNIT_OPTIONS;
+
+                  const nextUnit = nextOptions.includes(prev.unit)
+                    ? prev.unit
+                    : nextOptions[0];
+
+                  return {
+                    ...prev,
+                    itemType: nextType,
+                    unit: nextUnit,
+                  };
+                })
+              }
+              className="w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-sm text-[#2A241B]"
+            >
+              <option value="raw">Raw Item</option>
+              <option value="prepared">Prepared Item</option>
+            </select>
             <div className="grid gap-3 grid-cols-2">
               <input
                 type="number"
@@ -218,15 +524,19 @@ const InventoryPage = () => {
                 }
                 className="w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-sm text-[#2A241B]"
               />
-              <input
-                type="text"
-                placeholder="Unit (kg, ltr, pcs)"
+              <select
                 value={form.unit}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, unit: event.target.value }))
                 }
                 className="w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-sm text-[#2A241B]"
-              />
+              >
+                {unitOptions.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
             </div>
             <input
               type="number"
@@ -252,12 +562,12 @@ const InventoryPage = () => {
               {creating ? (
                 <>
                   <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Adding
+                  {editingItemId ? "Updating" : "Adding"}
                 </>
               ) : (
                 <>
                   <FiPlusCircle className="h-4 w-4" aria-hidden="true" />
-                  Add Item
+                  {editingItemId ? "Update Item" : "Add Item"}
                 </>
               )}
             </button>

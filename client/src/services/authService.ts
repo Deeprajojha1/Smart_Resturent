@@ -6,7 +6,13 @@ export type AuthUser = {
   name: string;
   picture?: string;
   phoneNumber?: string;
-  role?: "cashier" | "manager" | "admin" | "inventory" | "vendor";
+  role?:
+    | "cashier"
+    | "manager"
+    | "admin"
+    | "inventory"
+    | "inventory_head"
+    | "vendor";
   restaurantId?: string;
 };
 

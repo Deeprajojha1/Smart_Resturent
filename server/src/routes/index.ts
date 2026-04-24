@@ -13,6 +13,7 @@ import notificationRoutes from "./notification.routes";
 import menuRoutes from "./menu.routes";
 import onlineOrderRoutes from "./onlineOrder.routes";
 import publicRoutes from "./public.routes";
+import inventoryRequestRoutes from "./inventoryRequest.routes";
 const router = Router();
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
@@ -28,5 +29,6 @@ router.use("/notifications", notificationRoutes);
 router.use("/menu", menuRoutes);
 router.use("/online-orders", onlineOrderRoutes);
 router.use("/public", publicRoutes);
+router.use("/inventory-requests", inventoryRequestRoutes);
 
 export default router;

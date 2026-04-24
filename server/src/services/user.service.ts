@@ -1,8 +1,14 @@
 import User from "../models/User.model";
 import Restaurant from "../models/Restaurant.model";
+import Employee from "../models/Employee.model";
 import type { Role } from "../constants/roles";
 
 type UserError = Error & { statusCode?: number };
+
+const getRequesterRestaurantId = async (requesterId: string) => {
+  const requester = await User.findById(requesterId).select("restaurantId");
+  return requester?.restaurantId ?? null;
+};
 
 export const getUsers = async (options?: {
   search?: string;
@@ -56,6 +62,12 @@ export const updateRole = async (userId: string, role: Role) => {
   user.role = role;
   await user.save();
 
+  // Keep employee role in sync when role is changed from Settings/User management.
+  await Employee.updateMany(
+    { userId: user._id },
+    { $set: { role } }
+  );
+
   return {
     id: user._id,
     email: user.email,
@@ -103,5 +115,51 @@ export const assignRestaurant = async (userId: string, restaurantId: string) => 
     role: user.role,
     restaurantId: user.restaurantId,
     restaurantIds: user.restaurantIds,
+  };
+};
+
+export const removeEmployeeFromRequesterRestaurant = async (
+  userId: string,
+  requesterId: string
+) => {
+  const requesterRestaurantId = await getRequesterRestaurantId(requesterId);
+  if (!requesterRestaurantId) {
+    const error: UserError = new Error("Restaurant not found for user.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    const error: UserError = new Error("User not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const requesterRestaurantIdString = String(requesterRestaurantId);
+  const currentRestaurantIds = (user.restaurantIds ?? []).map((item) => String(item));
+  const currentPrimaryRestaurantId = String(user.restaurantId ?? "");
+
+  user.restaurantIds = (user.restaurantIds ?? []).filter(
+    (item) => String(item) !== requesterRestaurantIdString
+  );
+
+  if (String(user.restaurantId ?? "") === requesterRestaurantIdString) {
+    user.restaurantId = user.restaurantIds[0];
+  }
+
+  await user.save();
+
+  return {
+    id: user._id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    removedRestaurantId: requesterRestaurantIdString,
+    restaurantId: user.restaurantId,
+    restaurantIds: user.restaurantIds,
+    wasAssignedToRestaurant:
+      currentRestaurantIds.includes(requesterRestaurantIdString) ||
+      currentPrimaryRestaurantId === requesterRestaurantIdString,
   };
 };

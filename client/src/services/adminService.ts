@@ -30,7 +30,13 @@ export type AdminUser = {
   id?: string;
   name: string;
   email: string;
-  role: "cashier" | "manager" | "admin" | "inventory" | "vendor";
+  role:
+    | "cashier"
+    | "manager"
+    | "admin"
+    | "inventory"
+    | "inventory_head"
+    | "vendor";
   restaurantId?: Restaurant | string;
   restaurantIds?: Array<Restaurant | string>;
   createdAt?: string;
@@ -100,6 +106,7 @@ export type MonthlyOnlineOrderRecord = {
 export type InventoryItem = {
   _id: string;
   itemName: string;
+  itemType?: "raw" | "prepared";
   quantity: number;
   unit?: string;
   lowStockThreshold?: number;
@@ -107,6 +114,7 @@ export type InventoryItem = {
 
 export type InventoryCreateInput = {
   itemName: string;
+  itemType?: "raw" | "prepared";
   quantity: number;
   unit: string;
   lowStockThreshold: number;
@@ -114,6 +122,32 @@ export type InventoryCreateInput = {
 
 export type InventoryStockUpdateInput = {
   quantity: number;
+};
+
+export type InventoryRequestStatus =
+  | "requested"
+  | "approved"
+  | "vendor_assigned"
+  | "dispatched"
+  | "received"
+  | "fulfilled"
+  | "closed"
+  | "cancelled";
+
+export type InventoryRequest = {
+  _id: string;
+  itemName: string;
+  requestedQty: number;
+  availableQty: number;
+  source: "pos_order" | "manual";
+  sourceOrderId?: string;
+  requestedBy?: { _id?: string; name?: string; email?: string; role?: string };
+  assignedVendorId?: { _id?: string; name?: string; email?: string; role?: string };
+  eta?: string;
+  status: InventoryRequestStatus;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Employee = {
@@ -127,14 +161,26 @@ export type Employee = {
 
 export type EmployeeCreateInput = {
   userId: string;
-  role: "cashier" | "manager" | "admin" | "inventory" | "vendor";
+  role:
+    | "cashier"
+    | "manager"
+    | "admin"
+    | "inventory"
+    | "inventory_head"
+    | "vendor";
   salary: number;
   joiningDate: string;
   isActive?: boolean;
 };
 
 export type EmployeeUpdateInput = Partial<{
-  role: "cashier" | "manager" | "admin" | "inventory" | "vendor";
+  role:
+    | "cashier"
+    | "manager"
+    | "admin"
+    | "inventory"
+    | "inventory_head"
+    | "vendor";
   salary: number;
   joiningDate: string;
   isActive: boolean;
@@ -151,7 +197,13 @@ export type Expense = {
     _id?: string;
     name?: string;
     email?: string;
-    role?: "cashier" | "manager" | "admin" | "inventory" | "vendor";
+    role?:
+      | "cashier"
+      | "manager"
+      | "admin"
+      | "inventory"
+      | "inventory_head"
+      | "vendor";
   };
   createdAt?: string;
 };
@@ -501,6 +553,9 @@ export const updateOnlineOrderStatus = async (
 export const getLowStock = async () =>
   unwrap(await API.get<ApiResponse<InventoryItem[]>>("/inventory/low-stock"));
 
+export const getInventoryItems = async () =>
+  unwrap(await API.get<ApiResponse<InventoryItem[]>>("/inventory"));
+
 export const getInventoryStats = async () =>
   unwrap(await API.get<ApiResponse<InventoryStats>>("/inventory/stats"));
 
@@ -515,6 +570,92 @@ export const updateInventoryStock = async (
   data: InventoryStockUpdateInput
 ) => unwrap(await API.patch<ApiResponse<InventoryItem>>(`/inventory/${id}`, data));
 
+export const updateInventoryItem = async (
+  id: string,
+  data: InventoryCreateInput
+) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryItem>>(`/inventory/${id}/details`, data)
+  );
+
+export const deleteInventoryItem = async (id: string) =>
+  unwrap(await API.delete<ApiResponse<{ message: string }>>(`/inventory/${id}`));
+
+export const getInventoryRequests = async (params?: {
+  status?: InventoryRequestStatus | "all";
+}) =>
+  unwrap(
+    await API.get<ApiResponse<InventoryRequest[]>>(
+      `/inventory-requests${buildQuery(
+        params?.status && params.status !== "all"
+          ? { status: params.status }
+          : undefined
+      )}`
+    )
+  );
+
+export const createInventoryRequest = async (data: {
+  itemName: string;
+  requestedQty: number;
+  availableQty?: number;
+  notes?: string;
+}) =>
+  unwrap(await API.post<ApiResponse<InventoryRequest>>("/inventory-requests", data));
+
+export const approveInventoryRequest = async (id: string, note?: string) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(`/inventory-requests/${id}/approve`, {
+      note,
+    })
+  );
+
+export const assignInventoryRequestVendor = async (
+  id: string,
+  data: { vendorId: string; eta?: string; note?: string }
+) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(
+      `/inventory-requests/${id}/assign-vendor`,
+      data
+    )
+  );
+
+export const dispatchInventoryRequest = async (id: string, note?: string) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(`/inventory-requests/${id}/dispatch`, {
+      note,
+    })
+  );
+
+export const receiveInventoryRequest = async (
+  id: string,
+  data?: { receivedQty?: number; note?: string }
+) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(`/inventory-requests/${id}/receive`, data)
+  );
+
+export const fulfillInventoryRequest = async (id: string, note?: string) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(`/inventory-requests/${id}/fulfill`, {
+      note,
+    })
+  );
+
+export const closeInventoryRequest = async (id: string, note?: string) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(`/inventory-requests/${id}/close`, {
+      note,
+    })
+  );
+
+export const cancelInventoryRequest = async (id: string, note?: string) =>
+  unwrap(
+    await API.patch<ApiResponse<InventoryRequest>>(`/inventory-requests/${id}/cancel`, {
+      note,
+    })
+  );
+
 export const getEmployees = async () =>
   unwrap(await API.get<ApiResponse<Employee[]>>("/employees"));
 
@@ -523,6 +664,9 @@ export const createEmployee = async (data: EmployeeCreateInput) =>
 
 export const updateEmployee = async (id: string, data: EmployeeUpdateInput) =>
   unwrap(await API.patch<ApiResponse<Employee>>(`/employees/${id}`, data));
+
+export const deleteEmployeeByUser = async (userId: string) =>
+  unwrap(await API.delete<ApiResponse<{ message: string }>>(`/users/${userId}/employee`));
 
 export const getExpenses = async (params?: AdminQuery) =>
   unwrap(

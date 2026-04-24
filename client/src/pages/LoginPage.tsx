@@ -14,6 +14,7 @@ const roleToPath: Record<string, string> = {
   manager: "/manager",
   cashier: "/cashier",
   inventory: "/inventory",
+  inventory_head: "/inventory",
   vendor: "/vendor",
 };
 

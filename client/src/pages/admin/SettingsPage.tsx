@@ -6,6 +6,7 @@ import {
   FiSave,
   FiSearch,
   FiSettings,
+  FiTrash2,
   FiUserPlus,
 } from "react-icons/fi";
 import { ClipLoader } from "react-spinners";
@@ -15,7 +16,9 @@ import { useAdminResource } from "../../customhooks/useAdminResource";
 import {
   assignRestaurantToUser,
   createRestaurant,
+  deleteEmployeeByUser,
   getMyRestaurant,
+  getEmployees,
   getRestaurants,
   getUsers,
   updateRestaurant,
@@ -50,6 +53,7 @@ const roleOptions: Array<AdminUser["role"]> = [
   "manager",
   "admin",
   "inventory",
+  "inventory_head",
   "vendor",
 ];
 
@@ -97,6 +101,7 @@ const SettingsPage = () => {
   );
   const { data: users, loading: usersLoading, error: usersError } =
     useAdminResource(getUsers, [refreshKey]);
+  const { data: employees } = useAdminResource(getEmployees, [refreshKey]);
   const [selectedRestaurant, setSelectedRestaurant] =
     useState<Restaurant | null>(null);
   const [form, setForm] = useState<RestaurantFormState>(initialForm);
@@ -113,6 +118,7 @@ const SettingsPage = () => {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState(false);
   const [editLocation, setEditLocation] = useState("");
   const [savingLocation, setSavingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -162,6 +168,9 @@ const SettingsPage = () => {
 
   const selectedUser =
     users?.find((item) => getUserId(item) === selectedUserId) ?? null;
+  const selectedUserHasEmployee = (employees ?? []).some(
+    (employee) => employee.userId?.email && employee.userId.email === selectedUser?.email
+  );
 
   useEffect(() => {
     if (restaurant) {
@@ -261,6 +270,43 @@ const SettingsPage = () => {
       );
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!selectedUserId || !selectedUser) {
+      setAssignError("Please select a team member.");
+      return;
+    }
+
+    if (!selectedUserHasEmployee) {
+      setAssignError("Selected user is not an employee.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete employee record for ${selectedUser.name}?`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingEmployee(true);
+    setAssignError(null);
+    setAssignSuccess(null);
+
+    try {
+      const result = await deleteEmployeeByUser(selectedUserId);
+      setAssignSuccess(result.message);
+      setRefreshKey((key) => key + 1);
+    } catch (deleteError) {
+      setAssignError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Employee could not be deleted."
+      );
+    } finally {
+      setDeletingEmployee(false);
     }
   };
 
@@ -601,6 +647,15 @@ const SettingsPage = () => {
                   </div>
                 )}
 
+                {selectedUser && (
+                  <div className="mt-3 rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-sm text-[#6B5C46]">
+                    Employee status:{" "}
+                    <span className="font-medium text-[#2A241B]">
+                      {selectedUserHasEmployee ? "Employee exists" : "Not an employee"}
+                    </span>
+                  </div>
+                )}
+
                 <label className="mt-4 block text-sm">
                   <span className="font-medium text-[#2A241B]">Role</span>
                   <select
@@ -639,6 +694,24 @@ const SettingsPage = () => {
                     <>
                       <FiUserPlus className="h-4 w-4" />
                       Assign User
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleDeleteEmployee}
+                  disabled={deletingEmployee || !selectedUserId || !selectedUserHasEmployee}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#D7B6AF] bg-white px-4 py-2 text-sm font-semibold text-[#9B3F2C] disabled:opacity-60"
+                >
+                  {deletingEmployee ? (
+                    <>
+                      <ClipLoader size={14} color="#9B3F2C" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <FiTrash2 className="h-4 w-4" />
+                      Delete Employee
                     </>
                   )}
                 </button>

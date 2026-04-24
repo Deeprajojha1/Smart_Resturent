@@ -103,3 +103,25 @@ export const updateEmployeeService = async (
 
   return employee;
 };
+
+export const deleteEmployeeByUserService = async (
+  userId: string,
+  requester: Requester
+) => {
+  const restaurantId = await getRequesterRestaurantId(requester.id);
+  if (!restaurantId) {
+    const error = new Error("Restaurant not found for user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  const deleted = await Employee.findOneAndDelete({ userId, restaurantId });
+
+  if (!deleted) {
+    const error = new Error("Employee not found for selected user.");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  return { message: "Employee deleted successfully." };
+};

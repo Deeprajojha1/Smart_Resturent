@@ -1,6 +1,7 @@
 import Order from "../models/Order.model";
 import Inventory from "../models/Inventory.model";
 import User from "../models/User.model";
+import { raiseInventoryRequestsFromShortages } from "./inventoryRequest.service";
 
 type OrderItemInput = {
   name: string;
@@ -37,6 +38,44 @@ export const createOrderService = async (
     (acc, item) => acc + item.price * item.quantity,
     0
   );
+
+  const itemNames = Array.from(new Set(data.items.map((item) => item.name)));
+  const inventoryItems = await Inventory.find({
+    restaurantId,
+    itemName: { $in: itemNames },
+  }).select("itemName quantity");
+
+  const inventoryMap = new Map(
+    inventoryItems.map((item) => [item.itemName, item.quantity])
+  );
+
+  const shortages = data.items
+    .map((item) => {
+      const available = inventoryMap.get(item.name) ?? 0;
+      return {
+        itemName: item.name,
+        requiredQty: item.quantity,
+        availableQty: available,
+      };
+    })
+    .filter((item) => item.availableQty < item.requiredQty);
+
+  if (shortages.length) {
+    await raiseInventoryRequestsFromShortages(shortages, requester);
+
+    const shortageText = shortages
+      .map(
+        (shortage) =>
+          `${shortage.itemName} (required: ${shortage.requiredQty}, available: ${shortage.availableQty})`
+      )
+      .join(", ");
+
+    const error = new Error(
+      `Insufficient stock for ${shortageText}. Inventory request has been raised for inventory head.`
+    );
+    (error as Error & { statusCode?: number }).statusCode = 409;
+    throw error;
+  }
 
   const order = await Order.create({
     restaurantId,
