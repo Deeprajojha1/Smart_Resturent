@@ -35,12 +35,14 @@ export const registerUser = createAsyncThunk(
     email: string;
     password: string;
     phoneNumber: string;
+    role?: authService.AuthUser["role"];
   }) => {
     return authService.register(
       payload.name,
       payload.email,
       payload.password,
-      payload.phoneNumber
+      payload.phoneNumber,
+      payload.role
     );
   }
 );

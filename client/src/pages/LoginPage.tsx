@@ -10,6 +10,7 @@ import { googleAuth, loginUser, registerUser } from "../store/authSlice";
 import "../styles/LoginPage.css";
 
 const roleToPath: Record<string, string> = {
+  customer: "/customer-dashboard",
   admin: "/admin",
   manager: "/manager",
   cashier: "/cashier",
@@ -50,6 +51,7 @@ const LoginPage = () => {
               email,
               password,
               phoneNumber: phone,
+              role: "customer",
             })
           ).unwrap();
           toast.success("Account created successfully.");

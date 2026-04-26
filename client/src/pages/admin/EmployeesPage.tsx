@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiLoader, FiSave, FiSearch, FiUserPlus } from "react-icons/fi";
+import { useLocation } from "react-router-dom";
 import SectionShell from "../../components/admin/SectionShell";
 import ResourceState from "../../components/admin/ResourceState";
 import { useAdminResource } from "../../customhooks/useAdminResource";
@@ -67,12 +68,19 @@ const createInitialEmployeeCreateForm = (): EmployeeCreateFormState => ({
 const EmployeesPage = () => {
   const itemsPerPage = 5;
   const [refreshKey, setRefreshKey] = useState(0);
+  const location = useLocation();
   const { user: currentUser } = useCurrentUser();
+  const isInventoryWorkspace = location.pathname.startsWith("/inventory");
+  const canManageEmployees =
+    currentUser?.role === "manager" || currentUser?.role === "admin";
   const { data: employees, loading, error } = useAdminResource(
     getEmployees,
     [refreshKey]
   );
-  const { data: users } = useAdminResource(getUsers, [refreshKey]);
+  const { data: users } = useAdminResource(
+    () => (canManageEmployees ? getUsers() : Promise.resolve([] as AdminUser[])),
+    [refreshKey, canManageEmployees]
+  );
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [form, setForm] = useState<EmployeeFormState | null>(null);
   const [createForm, setCreateForm] = useState<EmployeeCreateFormState>(
@@ -116,6 +124,10 @@ const EmployeesPage = () => {
 
   const filteredEmployees = useMemo(() => {
     return (employees ?? []).filter((employee) => {
+      const matchesInventoryScope =
+        !isInventoryWorkspace ||
+        employee.role === "inventory" ||
+        employee.role === "inventory_head";
       const normalizedSearch = searchTerm.trim().toLowerCase();
       const searchableText = [
         employee.userId?.name,
@@ -134,9 +146,9 @@ const EmployeesPage = () => {
         (statusFilter === "active" && employee.isActive !== false) ||
         (statusFilter === "inactive" && employee.isActive === false);
 
-      return matchesSearch && matchesRole && matchesStatus;
+      return matchesInventoryScope && matchesSearch && matchesRole && matchesStatus;
     });
-  }, [employees, roleFilter, searchTerm, statusFilter]);
+  }, [employees, isInventoryWorkspace, roleFilter, searchTerm, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
 
@@ -184,7 +196,7 @@ const EmployeesPage = () => {
   };
 
   const handleSave = async () => {
-    if (!selectedEmployee || !form) {
+    if (!selectedEmployee || !form || !canManageEmployees) {
       return;
     }
 
@@ -217,6 +229,10 @@ const EmployeesPage = () => {
   };
 
   const handleCreateEmployee = async () => {
+    if (!canManageEmployees) {
+      return;
+    }
+
     if (!createForm.userId) {
       setCreateEmployeeError("Please select a user.");
       return;
@@ -255,146 +271,159 @@ const EmployeesPage = () => {
   };
 
   return (
-    <SectionShell title="Employees" subtitle="Team Overview">
+    <SectionShell
+      title={isInventoryWorkspace ? "Inventory Team" : "Employees"}
+      subtitle={isInventoryWorkspace ? "Inventory Staff Directory" : "Team Overview"}
+    >
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <div className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
-          <div className="rounded-lg border border-[#E4DCCF] bg-[#FFF7F2] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <h4 className="text-lg font-semibold text-[#2A241B]">
-                Assigned Users Not Yet in Employees
-              </h4>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6B5C46]">
-                {assignedUsers.length}
-              </span>
+          {!canManageEmployees && (
+            <div className="mb-6 rounded-lg border border-[#E4DCCF] bg-[#FFF7F2] p-4 text-sm text-[#6B5C46]">
+              Inventory head can view the staff directory here. Employee creation and edits stay with manager/admin access.
             </div>
-            <div className="mt-4 space-y-2">
-              {assignedUsers.length ? (
-                assignedUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between rounded-lg border border-[#F1D8C7] bg-white px-3 py-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium text-[#2A241B]">{user.name}</p>
-                      <p className="text-xs text-[#8A7A62]">{user.email}</p>
-                    </div>
-                    <span className="rounded-full bg-[#F7F1E8] px-2 py-1 text-xs font-semibold capitalize text-[#6B5C46]">
-                      {user.role}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-[#8A7A62]">
-                  No assigned users pending employee creation.
-                </p>
-              )}
-            </div>
-          </div>
+          )}
 
-          <div className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] p-4">
-            <h4 className="text-lg font-semibold text-[#2A241B]">Add Employee</h4>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="block text-sm md:col-span-2">
-                <span className="font-medium text-[#2A241B]">Select User</span>
-                <select
-                  value={createForm.userId}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({ ...prev, userId: event.target.value }))
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+          {canManageEmployees && (
+            <>
+              <div className="rounded-lg border border-[#E4DCCF] bg-[#FFF7F2] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-lg font-semibold text-[#2A241B]">
+                    Assigned Users Not Yet in Employees
+                  </h4>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6B5C46]">
+                    {assignedUsers.length}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {assignedUsers.length ? (
+                    assignedUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between rounded-lg border border-[#F1D8C7] bg-white px-3 py-2 text-sm"
+                      >
+                        <div>
+                          <p className="font-medium text-[#2A241B]">{user.name}</p>
+                          <p className="text-xs text-[#8A7A62]">{user.email}</p>
+                        </div>
+                        <span className="rounded-full bg-[#F7F1E8] px-2 py-1 text-xs font-semibold capitalize text-[#6B5C46]">
+                          {user.role}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-[#8A7A62]">
+                      No assigned users pending employee creation.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] p-4">
+                <h4 className="text-lg font-semibold text-[#2A241B]">Add Employee</h4>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="block text-sm md:col-span-2">
+                    <span className="font-medium text-[#2A241B]">Select User</span>
+                    <select
+                      value={createForm.userId}
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({ ...prev, userId: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    >
+                      <option value="">Choose a user</option>
+                      {eligibleUsers.map((user: AdminUser) => (
+                        <option key={getUserId(user)} value={getUserId(user)}>
+                          {user.name} - {user.email} ({user.role})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block text-sm">
+                    <span className="font-medium text-[#2A241B]">Role</span>
+                    <select
+                      value={createForm.role}
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          role: event.target.value as EmployeeCreateFormState["role"],
+                        }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    >
+                      {roles.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block text-sm">
+                    <span className="font-medium text-[#2A241B]">Salary</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={createForm.salary}
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({ ...prev, salary: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    />
+                  </label>
+
+                  <label className="block text-sm">
+                    <span className="font-medium text-[#2A241B]">Joining Date</span>
+                    <input
+                      type="date"
+                      value={createForm.joiningDate}
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({ ...prev, joiningDate: event.target.value }))
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-3 text-sm md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={createForm.isActive}
+                      onChange={(event) =>
+                        setCreateForm((prev) => ({ ...prev, isActive: event.target.checked }))
+                      }
+                      className="h-4 w-4 rounded border-[#E0D5C3]"
+                    />
+                    <span className="font-medium text-[#2A241B]">Active employee</span>
+                  </label>
+                </div>
+
+                {createEmployeeError && (
+                  <p className="mt-3 text-sm text-[#9B3F2C]">{createEmployeeError}</p>
+                )}
+                {createEmployeeSuccess && (
+                  <p className="mt-3 text-sm text-[#3F6F5B]">{createEmployeeSuccess}</p>
+                )}
+
+                <button
+                  onClick={handleCreateEmployee}
+                  disabled={creatingEmployee}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#2A241B] px-4 py-2 text-sm font-semibold text-[#F7F1E8] disabled:opacity-60"
                 >
-                  <option value="">Choose a user</option>
-                  {eligibleUsers.map((user: AdminUser) => (
-                    <option key={getUserId(user)} value={getUserId(user)}>
-                      {user.name} - {user.email} ({user.role})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block text-sm">
-                <span className="font-medium text-[#2A241B]">Role</span>
-                <select
-                  value={createForm.role}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({
-                      ...prev,
-                      role: event.target.value as EmployeeCreateFormState["role"],
-                    }))
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
-                >
-                  {roles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block text-sm">
-                <span className="font-medium text-[#2A241B]">Salary</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={createForm.salary}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({ ...prev, salary: event.target.value }))
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
-                />
-              </label>
-
-              <label className="block text-sm">
-                <span className="font-medium text-[#2A241B]">Joining Date</span>
-                <input
-                  type="date"
-                  value={createForm.joiningDate}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({ ...prev, joiningDate: event.target.value }))
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
-                />
-              </label>
-
-              <label className="flex items-center gap-3 text-sm md:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={createForm.isActive}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({ ...prev, isActive: event.target.checked }))
-                  }
-                  className="h-4 w-4 rounded border-[#E0D5C3]"
-                />
-                <span className="font-medium text-[#2A241B]">Active employee</span>
-              </label>
-            </div>
-
-            {createEmployeeError && (
-              <p className="mt-3 text-sm text-[#9B3F2C]">{createEmployeeError}</p>
-            )}
-            {createEmployeeSuccess && (
-              <p className="mt-3 text-sm text-[#3F6F5B]">{createEmployeeSuccess}</p>
-            )}
-
-            <button
-              onClick={handleCreateEmployee}
-              disabled={creatingEmployee}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#2A241B] px-4 py-2 text-sm font-semibold text-[#F7F1E8] disabled:opacity-60"
-            >
-              {creatingEmployee ? (
-                <>
-                  <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <FiUserPlus className="h-4 w-4" aria-hidden="true" />
-                  Create Employee
-                </>
-              )}
-            </button>
-          </div>
+                  {creatingEmployee ? (
+                    <>
+                      <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <FiUserPlus className="h-4 w-4" aria-hidden="true" />
+                      Create Employee
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
 
           <div className="flex items-center justify-between">
             <h4 className="text-lg font-semibold text-[#2A241B]">
@@ -532,12 +561,14 @@ const EmployeesPage = () => {
 
         <div className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
           <h4 className="text-lg font-semibold text-[#2A241B]">
-            Employee Details
+            {canManageEmployees ? "Employee Details" : "Selected Staff"}
           </h4>
 
           {!selectedEmployee || !form ? (
             <p className="mt-4 text-sm text-[#8A7A62]">
-              Click an employee row to view and edit details.
+              {canManageEmployees
+                ? "Click an employee row to view and edit details."
+                : "Click an employee row to view staff details."}
             </p>
           ) : (
             <div className="mt-4 space-y-4">
@@ -550,82 +581,107 @@ const EmployeesPage = () => {
                 </p>
               </div>
 
-              <label className="block text-sm">
-                <span className="font-medium text-[#2A241B]">Role</span>
-                <select
-                  value={form.role}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      role: event.target.value as EmployeeFormState["role"],
-                    })
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
-                >
-                  {roles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {canManageEmployees ? (
+                <>
+                  <label className="block text-sm">
+                    <span className="font-medium text-[#2A241B]">Role</span>
+                    <select
+                      value={form.role}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          role: event.target.value as EmployeeFormState["role"],
+                        })
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    >
+                      {roles.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <label className="block text-sm">
-                <span className="font-medium text-[#2A241B]">Salary</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.salary}
-                  onChange={(event) =>
-                    setForm({ ...form, salary: event.target.value })
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
-                />
-              </label>
+                  <label className="block text-sm">
+                    <span className="font-medium text-[#2A241B]">Salary</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.salary}
+                      onChange={(event) =>
+                        setForm({ ...form, salary: event.target.value })
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    />
+                  </label>
 
-              <label className="block text-sm">
-                <span className="font-medium text-[#2A241B]">Joining Date</span>
-                <input
-                  type="date"
-                  value={form.joiningDate}
-                  onChange={(event) =>
-                    setForm({ ...form, joiningDate: event.target.value })
-                  }
-                  className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
-                />
-              </label>
+                  <label className="block text-sm">
+                    <span className="font-medium text-[#2A241B]">Joining Date</span>
+                    <input
+                      type="date"
+                      value={form.joiningDate}
+                      onChange={(event) =>
+                        setForm({ ...form, joiningDate: event.target.value })
+                      }
+                      className="mt-2 w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-[#2A241B]"
+                    />
+                  </label>
 
-              <label className="flex items-center gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(event) =>
-                    setForm({ ...form, isActive: event.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-[#E0D5C3]"
-                />
-                <span className="font-medium text-[#2A241B]">Active employee</span>
-              </label>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.isActive}
+                      onChange={(event) =>
+                        setForm({ ...form, isActive: event.target.checked })
+                      }
+                      className="h-4 w-4 rounded border-[#E0D5C3]"
+                    />
+                    <span className="font-medium text-[#2A241B]">Active employee</span>
+                  </label>
 
-              {saveError && <p className="text-sm text-[#9B3F2C]">{saveError}</p>}
+                  {saveError && <p className="text-sm text-[#9B3F2C]">{saveError}</p>}
 
-              <button
-                onClick={handleSave}
-                disabled={saving || !form.role || !form.salary}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2A241B] px-4 py-2 text-sm font-semibold text-[#F7F1E8] disabled:opacity-60"
-              >
-                {saving ? (
-                  <>
-                    <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <FiSave className="h-4 w-4" aria-hidden="true" />
-                    Save Changes
-                  </>
-                )}
-              </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || !form.role || !form.salary}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2A241B] px-4 py-2 text-sm font-semibold text-[#F7F1E8] disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <>
+                        <FiLoader className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <FiSave className="h-4 w-4" aria-hidden="true" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <div className="space-y-3 text-sm text-[#6B5C46]">
+                  <div className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] px-4 py-3">
+                    <span className="text-xs uppercase tracking-[0.18em] text-[#8A7A62]">Role</span>
+                    <p className="mt-1 font-medium capitalize text-[#2A241B]">{form.role}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] px-4 py-3">
+                    <span className="text-xs uppercase tracking-[0.18em] text-[#8A7A62]">Salary</span>
+                    <p className="mt-1 font-medium text-[#2A241B]">Rs {form.salary || "0"}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] px-4 py-3">
+                    <span className="text-xs uppercase tracking-[0.18em] text-[#8A7A62]">Joining Date</span>
+                    <p className="mt-1 font-medium text-[#2A241B]">{form.joiningDate || "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#EEE4D5] bg-[#F9F4EC] px-4 py-3">
+                    <span className="text-xs uppercase tracking-[0.18em] text-[#8A7A62]">Status</span>
+                    <p className="mt-1 font-medium text-[#2A241B]">
+                      {form.isActive ? "Active" : "Inactive"}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

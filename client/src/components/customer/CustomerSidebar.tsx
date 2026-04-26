@@ -1,46 +1,34 @@
 import { Link, useLocation } from "react-router-dom";
 import {
-  FiBox,
   FiChevronsLeft,
   FiChevronsRight,
-  FiCompass,
-  FiLayers,
-  FiShield,
-  FiTruck,
-  FiUsers,
+  FiCoffee,
+  FiFilter,
+  FiMap,
+  FiShoppingCart,
 } from "react-icons/fi";
-import useCurrentUser from "../../customhooks/useCurrentUser";
 
-type InventorySidebarProps = {
+type CustomerSidebarProps = {
   isOpen: boolean;
   isDesktop: boolean;
   onToggle: () => void;
   onNavigate?: () => void;
 };
 
-const InventorySidebar = ({
+const navItems = [
+  { label: "Browse", to: "/customer-dashboard#browse", hash: "#browse", icon: FiCoffee },
+  { label: "Filters", to: "/customer-dashboard#filters", hash: "#filters", icon: FiFilter },
+  { label: "Cart", to: "/customer-dashboard#cart", hash: "#cart", icon: FiShoppingCart },
+];
+
+const CustomerSidebar = ({
   isOpen,
   isDesktop,
   onToggle,
   onNavigate,
-}: InventorySidebarProps) => {
-  const { user } = useCurrentUser();
+}: CustomerSidebarProps) => {
   const location = useLocation();
   const desktopWidthClass = isOpen ? "lg:w-64" : "lg:w-20";
-  const isInventoryHeadView =
-    user?.role === "inventory_head" || user?.role === "manager" || user?.role === "admin";
-  const navItems = isInventoryHeadView
-    ? [
-        { label: "Dashboard", to: "/inventory#overview", hash: "#overview", icon: FiCompass },
-        { label: "Stock Control", to: "/inventory#stock-control", hash: "#stock-control", icon: FiBox },
-        { label: "Request Flow", to: "/inventory#request-flow", hash: "#request-flow", icon: FiTruck },
-        { label: "Staff", to: "/inventory/employees", hash: "", icon: FiUsers },
-      ]
-    : [
-        { label: "Receiving", to: "/inventory#overview", hash: "#overview", icon: FiTruck },
-        { label: "Stock Count", to: "/inventory#stock-control", hash: "#stock-control", icon: FiBox },
-        { label: "Alerts", to: "/inventory#request-flow", hash: "#request-flow", icon: FiCompass },
-      ];
 
   return (
     <aside
@@ -56,11 +44,11 @@ const InventorySidebar = ({
         <div className={`space-y-1 ${isOpen ? "" : "text-center"}`}>
           {isOpen && (
             <p className="text-[10px] uppercase tracking-[0.3em] text-[#8A7A62]">
-              Inventory Console
+              Customer Space
             </p>
           )}
           <h1 className="text-xl font-semibold tracking-tight text-[#2A241B]">
-            {isOpen ? "OpsFlow" : "OF"}
+            {isOpen ? "Flavor Flow" : "FF"}
           </h1>
         </div>
         <button
@@ -79,13 +67,11 @@ const InventorySidebar = ({
           const Icon = item.icon;
           return (
             <Link
-              key={`${item.label}-${item.to}`}
+              key={item.label}
               to={item.to}
               onClick={onNavigate}
               className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                (item.hash
-                  ? location.pathname === "/inventory" && location.hash === item.hash
-                  : location.pathname === item.to)
+                location.pathname === "/customer-dashboard" && location.hash === item.hash
                   ? "bg-[#2A241B] text-[#F7F1E8]"
                   : "text-[#6B5C46] hover:bg-[#EEE4D5] hover:text-[#2A241B]"
               }`}
@@ -102,17 +88,11 @@ const InventorySidebar = ({
 
       {isOpen && (
         <div className="mt-6 rounded-2xl border border-[#E0D5C3] bg-white/80 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#8A7A62]">Role</p>
-          <p className="text-sm font-semibold text-[#2A241B]">
-            {user?.role === "inventory_head" ? "Inventory Head" : "Inventory Staff"}
-          </p>
+          <p className="text-xs uppercase tracking-[0.2em] text-[#8A7A62]">Live Mode</p>
+          <p className="text-sm font-semibold text-[#2A241B]">Prepared Food Dashboard</p>
           <p className="mt-2 inline-flex items-center gap-1 text-xs text-[#6B5C46]">
-            <FiShield className="h-3.5 w-3.5" />
-            {isInventoryHeadView ? "Approvals and vendor decisions" : "Receiving and floor stock workflow"}
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1 text-xs text-[#6B5C46]">
-            <FiLayers className="h-3.5 w-3.5" />
-            {isInventoryHeadView ? "Stock, vendors, and requests" : "Counts, intake, and shortage updates"}
+            <FiMap className="h-3.5 w-3.5" />
+            Restaurant-wise prepared menu
           </p>
         </div>
       )}
@@ -120,4 +100,4 @@ const InventorySidebar = ({
   );
 };
 
-export default InventorySidebar;
+export default CustomerSidebar;

@@ -4,11 +4,27 @@ import authorize from "../middlewares/authorize.middleware";
 import {
   assignRestaurantToUser,
   deleteEmployeeByUser,
+  getInventoryHeadForCurrentUser,
+  getRestaurantVendorsForCurrentUser,
   getUsers,
   updateUserRole,
 } from "../controllers/user.controller";
 
 const router = Router();
+
+router.get(
+  "/inventory-head/me",
+  authenticate,
+  authorize("inventory", "inventory_head", "manager", "admin"),
+  getInventoryHeadForCurrentUser
+);
+
+router.get(
+  "/vendors/me",
+  authenticate,
+  authorize("inventory", "inventory_head", "manager", "admin"),
+  getRestaurantVendorsForCurrentUser
+);
 
 // Admin-only: list users for assignment
 router.get("/", authenticate, authorize("admin"), getUsers);

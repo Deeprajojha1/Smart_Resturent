@@ -247,6 +247,7 @@ export const getInventoryRequestsService = async (
   return InventoryRequest.find(filter)
     .populate("requestedBy", "name email role")
     .populate("assignedVendorId", "name email role")
+    .populate("timeline.changedBy", "name email role")
     .sort({ createdAt: -1 });
 };
 

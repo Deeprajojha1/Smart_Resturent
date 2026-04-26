@@ -11,7 +11,7 @@ import authorize from "../middlewares/authorize.middleware";
 const router = Router();
 
 router.post("/", authenticate, authorize("manager", "admin"), createMenuItem);
-router.get("/", authenticate, authorize("manager", "admin"), getMenuItems);
+router.get("/", authenticate, authorize("cashier", "manager", "admin"), getMenuItems);
 router.patch("/:id", authenticate, authorize("manager", "admin"), updateMenuItem);
 router.delete(
   "/:id",

@@ -51,6 +51,50 @@ export const getUsers = async (options?: {
     .sort({ createdAt: -1 });
 };
 
+export const getInventoryHeadForRequester = async (requesterId: string) => {
+  const restaurantId = await getRequesterRestaurantId(requesterId);
+  if (!restaurantId) {
+    const error: UserError = new Error("Restaurant not found for user.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const inventoryHead = await User.findOne({
+    restaurantId,
+    role: "inventory_head",
+  })
+    .select("name email role restaurantId")
+    .sort({ createdAt: 1 });
+
+  if (!inventoryHead) {
+    return null;
+  }
+
+  return {
+    id: inventoryHead._id,
+    name: inventoryHead.name,
+    email: inventoryHead.email,
+    role: inventoryHead.role,
+    restaurantId: inventoryHead.restaurantId,
+  };
+};
+
+export const getVendorsForRequesterRestaurant = async (requesterId: string) => {
+  const restaurantId = await getRequesterRestaurantId(requesterId);
+  if (!restaurantId) {
+    const error: UserError = new Error("Restaurant not found for user.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return User.find({
+    restaurantId,
+    role: "vendor",
+  })
+    .select("name email role restaurantId createdAt")
+    .sort({ name: 1 });
+};
+
 export const updateRole = async (userId: string, role: Role) => {
   const user = await User.findById(userId);
   if (!user) {

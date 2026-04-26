@@ -10,7 +10,7 @@ import authorize from "../middlewares/authorize.middleware";
 const router = Router();
 
 router.post("/", authenticate, authorize("manager", "admin"), createEmployee);
-router.get("/", authenticate, authorize("manager", "admin"), getEmployees);
+router.get("/", authenticate, authorize("inventory_head", "manager", "admin"), getEmployees);
 router.patch("/:id", authenticate, authorize("manager", "admin"), updateEmployee);
 
 export default router;

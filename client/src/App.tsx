@@ -27,9 +27,12 @@ import CashierPOS from "./pages/cashier/CashierPOS";
 import InventoryDashboard from "./pages/inventory/InventoryDashboard";
 import InventoryLayout from "./components/inventory/InventoryLayout";
 import VendorPortal from "./pages/vendor/VendorPortal";
+import CustomerDashboard from "./pages/customer/CustomerDashboard";
+import CustomerLayout from "./components/customer/CustomerLayout";
 import ThreeDotsLoader from "./components/common/ThreeDotsLoader";
 
 const roleToPath = {
+  customer: "/customer-dashboard",
   admin: "/admin",
   manager: "/manager",
   cashier: "/cashier",
@@ -53,11 +56,7 @@ const HomeRoute = () => {
 };
 
 const LoginRoute = () => {
-  const { user, loading } = useCurrentUser();
-
-  if (loading) {
-    return <ThreeDotsLoader fullScreen />;
-  }
+  const { user } = useCurrentUser();
 
   if (user?.role && roleToPath[user.role]) {
     return <Navigate to={roleToPath[user.role]} replace />;
@@ -72,6 +71,16 @@ const App = () => {
       <Toaster position="top-right" />
       <Routes>
         <Route path="/" element={<HomeRoute />} />
+        <Route
+          path="/customer-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["customer"]}>
+              <CustomerLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<CustomerDashboard />} />
+        </Route>
         <Route path="/authUser" element={<LoginRoute />} />
         <Route
           path="/admin"
@@ -137,6 +146,7 @@ const App = () => {
           }
         >
           <Route index element={<InventoryDashboard />} />
+          <Route path="employees" element={<EmployeesPage />} />
         </Route>
         <Route
           path="/vendor"

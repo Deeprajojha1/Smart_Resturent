@@ -1,7 +1,10 @@
 import Container from "../../components/common/Container";
 import GlowButton from "../../components/ui/GlowButton";
+import { useNavigate } from "react-router-dom";
 
 const CTA = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="section-pad" id="cta">
       <Container>
@@ -15,7 +18,9 @@ const CTA = () => {
               LaunchForge gives you the decision engine investors expect from a
               modern AI-first restaurant brand.
             </p>
-            <GlowButton>Get Started Now</GlowButton>
+            <GlowButton onClick={() => navigate("/authUser")}>
+              Get Started Now
+            </GlowButton>
           </div>
         </div>
       </Container>

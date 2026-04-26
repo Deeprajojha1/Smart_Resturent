@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   getPublicMenuService,
+  getPublicPreparedMenuService,
   getPublicRestaurantsService,
 } from "../services/public.service";
 
@@ -34,6 +35,20 @@ export const getPublicMenu = async (
   try {
     const restaurantId = String(req.params.restaurantId);
     const menu = await getPublicMenuService(restaurantId);
+    return res.json({ success: true, data: menu });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getPublicPreparedMenu = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const restaurantId = String(req.params.restaurantId);
+    const menu = await getPublicPreparedMenuService(restaurantId);
     return res.json({ success: true, data: menu });
   } catch (error) {
     return next(error);

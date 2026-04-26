@@ -50,13 +50,23 @@ router.delete(
   deleteItem
 );
 
-// Manager + Admin (view)
-router.get("/low-stock", authenticate, authorize("manager", "admin"), getLowStock);
-router.get("/stats", authenticate, authorize("manager", "admin"), getStats);
+// Inventory dashboard views
+router.get(
+  "/low-stock",
+  authenticate,
+  authorize("inventory", "inventory_head", "manager", "admin"),
+  getLowStock
+);
+router.get(
+  "/stats",
+  authenticate,
+  authorize("inventory", "inventory_head", "manager", "admin"),
+  getStats
+);
 router.get(
   "/reorder",
   authenticate,
-  authorize("manager", "admin"),
+  authorize("inventory", "inventory_head", "manager", "admin"),
   getReorderSuggestions
 );
 

@@ -34,6 +34,7 @@ const InventoryPage = () => {
     quantity: "",
     unit: "kg",
     lowStockThreshold: "",
+    price: "",
   });
 
   const { data: lowStock, loading, error } = useAdminResource(getLowStock, [refreshKey]);
@@ -73,6 +74,7 @@ const InventoryPage = () => {
   const handleCreateItem = async () => {
     const quantity = Number(form.quantity);
     const lowStockThreshold = Number(form.lowStockThreshold);
+    const price = Number(form.price);
 
     if (!form.itemName.trim()) {
       setErrorMessage("Please enter item name.");
@@ -94,6 +96,11 @@ const InventoryPage = () => {
       return;
     }
 
+    if (form.itemType === "prepared" && (!Number.isFinite(price) || price < 0)) {
+      setErrorMessage("Please enter a valid price (0 or more) for prepared items.");
+      return;
+    }
+
     setCreating(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -105,6 +112,7 @@ const InventoryPage = () => {
         quantity,
         unit: form.unit.trim(),
         lowStockThreshold,
+        price: form.itemType === "prepared" ? price : 0,
       };
 
       if (editingItemId) {
@@ -121,6 +129,7 @@ const InventoryPage = () => {
         quantity: "",
         unit: "kg",
         lowStockThreshold: "",
+        price: "",
       });
       setEditingItemId(null);
       setRefreshKey((key) => key + 1);
@@ -145,6 +154,7 @@ const InventoryPage = () => {
       quantity: String(item.quantity ?? 0),
       unit: item.unit ?? "kg",
       lowStockThreshold: String(item.lowStockThreshold ?? 0),
+      price: String(item.price ?? 0),
     });
     setErrorMessage(null);
     setSuccessMessage("Editing mode enabled for selected raw item.");
@@ -158,6 +168,7 @@ const InventoryPage = () => {
       quantity: "",
       unit: "kg",
       lowStockThreshold: "",
+      price: "",
     });
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -505,6 +516,7 @@ const InventoryPage = () => {
                     ...prev,
                     itemType: nextType,
                     unit: nextUnit,
+                    price: nextType === "prepared" ? prev.price : "",
                   };
                 })
               }
@@ -538,6 +550,19 @@ const InventoryPage = () => {
                 ))}
               </select>
             </div>
+            {form.itemType === "prepared" && (
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Price"
+                value={form.price}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, price: event.target.value }))
+                }
+                className="w-full rounded-lg border border-[#E0D5C3] bg-white px-3 py-2 text-sm text-[#2A241B]"
+              />
+            )}
             <input
               type="number"
               min="0"

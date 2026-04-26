@@ -8,6 +8,7 @@ export interface IUser extends Document {
   picture?: string;
   phoneNumber?: string;
   role:
+    | "customer"
     | "cashier"
     | "manager"
     | "admin"
@@ -54,6 +55,7 @@ const userSchema = new mongoose.Schema<IUser>(
     role: {
       type: String,
       enum: [
+        "customer",
         "cashier",
         "manager",
         "admin",
@@ -61,7 +63,7 @@ const userSchema = new mongoose.Schema<IUser>(
         "inventory_head",
         "vendor",
       ],
-      default: "cashier",
+      default: "customer",
       required: true,
     },
     restaurantId: {

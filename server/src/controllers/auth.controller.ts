@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as authService from "../services/auth.service";
+import { ROLES, type Role } from "../constants/roles";
 
 type AuthError = Error & { statusCode?: number };
 
@@ -28,6 +29,7 @@ export const registerUser = async (
       email?: string;
       password?: string;
       phoneNumber?: string;
+      role?: Role;
     };
 
     if (!name || !email || !password || !phoneNumber) {
@@ -43,7 +45,20 @@ export const registerUser = async (
       });
     }
 
-    const result = await authService.register(name, email, password, phoneNumber);
+    if (req.body.role && !ROLES.includes(req.body.role)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role provided.",
+      });
+    }
+
+    const result = await authService.register(
+      name,
+      email,
+      password,
+      phoneNumber,
+      (req.body.role as Role | undefined) ?? "customer"
+    );
     res.cookie("token", result.token, tokenCookieOptions);
     return res.status(201).json({ success: true, data: result });
   } catch (error) {

@@ -42,6 +42,16 @@ export type AdminUser = {
   createdAt?: string;
 };
 
+export type VendorUser = {
+  _id?: string;
+  id?: string;
+  name: string;
+  email: string;
+  role: "vendor";
+  restaurantId?: Restaurant | string;
+  createdAt?: string;
+};
+
 export type MenuItem = {
   _id: string;
   name: string;
@@ -74,6 +84,11 @@ export type PosOrder = {
   paymentMethod?: "cash" | "card" | "upi";
   status: "pending" | "completed";
   createdAt?: string;
+};
+
+export type PosOrderCreateInput = {
+  items: OrderItem[];
+  paymentMethod: "cash" | "card" | "upi";
 };
 
 export type OnlineOrder = {
@@ -110,6 +125,7 @@ export type InventoryItem = {
   quantity: number;
   unit?: string;
   lowStockThreshold?: number;
+  price?: number;
 };
 
 export type InventoryCreateInput = {
@@ -118,6 +134,7 @@ export type InventoryCreateInput = {
   quantity: number;
   unit: string;
   lowStockThreshold: number;
+  price?: number;
 };
 
 export type InventoryStockUpdateInput = {
@@ -146,6 +163,12 @@ export type InventoryRequest = {
   eta?: string;
   status: InventoryRequestStatus;
   notes?: string;
+  timeline?: Array<{
+    status: InventoryRequestStatus;
+    note?: string;
+    changedAt?: string;
+    changedBy?: { _id?: string; name?: string; email?: string; role?: string };
+  }>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -478,6 +501,9 @@ export const getMyRestaurantById = async (id: string) =>
 export const getUsers = async (params?: AdminQuery) =>
   unwrap(await API.get<ApiResponse<AdminUser[]>>(`/users${buildQuery(params)}`));
 
+export const getRestaurantVendors = async () =>
+  unwrap(await API.get<ApiResponse<VendorUser[]>>("/users/vendors/me"));
+
 export const updateUserRole = async (
   id: string,
   role: AdminUser["role"]
@@ -512,6 +538,9 @@ export const deleteMenuItem = async (id: string) =>
 
 export const getOrders = async (params?: AdminQuery) =>
   unwrap(await API.get<ApiResponse<PosOrder[]>>(`/orders${buildQuery(params)}`));
+
+export const createPosOrder = async (data: PosOrderCreateInput) =>
+  unwrap(await API.post<ApiResponse<PosOrder>>("/orders", data));
 
 export const getOrderAnalytics = async () =>
   unwrap(await API.get<ApiResponse<OrderAnalytics[]>>("/orders/analytics"));

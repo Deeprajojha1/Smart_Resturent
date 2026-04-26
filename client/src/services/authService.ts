@@ -7,12 +7,21 @@ export type AuthUser = {
   picture?: string;
   phoneNumber?: string;
   role?:
+    | "customer"
     | "cashier"
     | "manager"
     | "admin"
     | "inventory"
     | "inventory_head"
     | "vendor";
+  restaurantId?: string;
+};
+
+export type InventoryHeadUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: "inventory_head";
   restaurantId?: string;
 };
 
@@ -25,13 +34,15 @@ const register = async (
   name: string,
   email: string,
   password: string,
-  phoneNumber: string
+  phoneNumber: string,
+  role: AuthUser["role"] = "customer"
 ) => {
   const response = await API.post("/auth/register", {
     name,
     email,
     password,
     phoneNumber,
+    role,
   });
   return response.data.data as AuthResponse;
 };
@@ -51,9 +62,14 @@ const getMe = async () => {
   return response.data.data as AuthUser;
 };
 
+const getInventoryHead = async () => {
+  const response = await API.get("/users/inventory-head/me");
+  return response.data.data as InventoryHeadUser | null;
+};
+
 const logout = async () => {
   const response = await API.post("/auth/logout");
   return response.data as { success: boolean; data?: { message?: string } };
 };
 
-export { register, emailLogin, googleLogin, getMe, logout };
+export { register, emailLogin, googleLogin, getMe, getInventoryHead, logout };

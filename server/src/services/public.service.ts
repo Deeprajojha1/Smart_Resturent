@@ -50,3 +50,46 @@ export const getPublicMenuService = async (restaurantId: string) => {
     };
   });
 };
+
+export const getPublicPreparedMenuService = async (restaurantId: string) => {
+  const inventoryDocs = await Inventory.find({
+    restaurantId,
+    itemType: "prepared",
+  }).sort({
+    itemName: 1,
+  });
+
+  const menuItems = await Menu.find({
+    restaurantId,
+    isAvailable: true,
+    name: { $in: inventoryDocs.map((item) => item.itemName) },
+  }).sort({
+    category: 1,
+    name: 1,
+  });
+
+  const menuMap = new Map(
+    menuItems.map((item) => [item.name, item])
+  );
+
+  return inventoryDocs.map((inventoryItem) => {
+    const menuItem = menuMap.get(inventoryItem.itemName);
+    const availableQuantity = inventoryItem.quantity ?? 0;
+
+    return {
+      _id: String(menuItem?._id ?? inventoryItem._id),
+      menuId: menuItem?._id ? String(menuItem._id) : undefined,
+      inventoryId: String(inventoryItem._id),
+      name: inventoryItem.itemName,
+      description: menuItem?.description,
+      price: menuItem?.price ?? inventoryItem.price ?? 0,
+      category: menuItem?.category ?? "Prepared Kitchen",
+      image: menuItem?.image,
+      itemType: inventoryItem.itemType,
+      unit: inventoryItem.unit,
+      availableQuantity,
+      inStock: availableQuantity > 0,
+      isOrderable: Boolean(menuItem),
+    };
+  });
+};

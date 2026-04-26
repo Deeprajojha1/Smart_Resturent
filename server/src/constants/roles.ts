@@ -1,4 +1,5 @@
 export const ROLES = [
+	"customer",
 	"cashier",
 	"manager",
 	"admin",

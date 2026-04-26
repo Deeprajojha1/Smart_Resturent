@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.model";
 import { verifyGoogleToken } from "../config/google.config";
 import { generateToken } from "../utils/jwt.utils";
+import type { Role } from "../constants/roles";
 
 type AuthError = Error & { statusCode?: number };
 
@@ -17,7 +18,8 @@ export const register = async (
   name: string,
   email: string,
   password: string,
-  phoneNumber: string
+  phoneNumber: string,
+  role: Role = "customer"
 ) => {
   const existing = await User.findOne({ email });
   if (existing) {
@@ -32,6 +34,7 @@ export const register = async (
     email,
     password: hashedPassword,
     phoneNumber,
+    role,
   });
   const token = generateToken(user);
 

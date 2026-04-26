@@ -13,8 +13,8 @@ const router = Router();
 // POS (Cashier + Admin)
 router.post("/", authenticate, authorize("cashier", "admin"), createOrder);
 
-// Manager + Admin
-router.get("/", authenticate, authorize("manager", "admin"), getOrders);
+// Cashier + Manager + Admin
+router.get("/", authenticate, authorize("cashier", "manager", "admin"), getOrders);
 
 // Analytics
 router.get(

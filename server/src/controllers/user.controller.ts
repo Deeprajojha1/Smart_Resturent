@@ -25,6 +25,52 @@ export const getUsers = async (
   }
 };
 
+export const getInventoryHeadForCurrentUser = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const inventoryHead = await userService.getInventoryHeadForRequester(req.user._id);
+    return res.json({ success: true, data: inventoryHead });
+  } catch (error) {
+    const err = error as UserError;
+    if (err.statusCode) {
+      return res
+        .status(err.statusCode)
+        .json({ success: false, message: err.message });
+    }
+    return next(error);
+  }
+};
+
+export const getRestaurantVendorsForCurrentUser = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const vendors = await userService.getVendorsForRequesterRestaurant(req.user._id);
+    return res.json({ success: true, data: vendors });
+  } catch (error) {
+    const err = error as UserError;
+    if (err.statusCode) {
+      return res
+        .status(err.statusCode)
+        .json({ success: false, message: err.message });
+    }
+    return next(error);
+  }
+};
+
 export const updateUserRole = async (
   req: Request,
   res: Response,

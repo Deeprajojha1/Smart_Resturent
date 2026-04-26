@@ -5,7 +5,7 @@ import ThreeDotsLoader from "../components/common/ThreeDotsLoader";
 
 type ProtectedRouteProps = {
   allowedRoles: Array<
-    "cashier" | "manager" | "admin" | "inventory" | "inventory_head" | "vendor"
+    "customer" | "cashier" | "manager" | "admin" | "inventory" | "inventory_head" | "vendor"
   >;
   children: ReactNode;
 };

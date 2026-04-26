@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   FiAlertTriangle,
   FiArrowRight,
@@ -35,7 +36,12 @@ import {
 } from "../../store/inventorySlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import useCurrentUser from "../../customhooks/useCurrentUser";
-import type { InventoryItem, InventoryRequest } from "../../services/adminService";
+import {
+  getRestaurantVendors,
+  type InventoryItem,
+  type InventoryRequest,
+  type VendorUser,
+} from "../../services/adminService";
 
 const RAW_UNITS = ["kg", "g", "ltr", "ml", "pcs"];
 const PREPARED_UNITS = ["portion", "plate", "pcs", "box", "pack"];
@@ -84,6 +90,23 @@ const getStatusClasses = (status?: string) =>
 const formatRoleLabel = (role?: string) =>
   role ? role.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase()) : "Operator";
 
+const formatTimelineDate = (value?: string) =>
+  value ? new Date(value).toLocaleString("en-IN") : "Recently";
+
+const getLatestHeadUpdate = (request: InventoryRequest) => {
+  const timeline = request.timeline ?? [];
+  const headRoles = new Set(["inventory_head", "manager", "admin"]);
+
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (entry.changedBy?.role && headRoles.has(entry.changedBy.role)) {
+      return entry;
+    }
+  }
+
+  return null;
+};
+
 const getItemRiskTone = (item: InventoryItem) => {
   const threshold = item.lowStockThreshold ?? 0;
   if (item.quantity <= threshold) {
@@ -97,6 +120,7 @@ const getItemRiskTone = (item: InventoryItem) => {
 
 const InventoryDashboard = () => {
   const dispatch = useAppDispatch();
+  const location = useLocation();
   const { user, loading: userLoading } = useCurrentUser();
   const {
     items,
@@ -119,6 +143,7 @@ const InventoryDashboard = () => {
     quantity: "",
     unit: "kg",
     lowStockThreshold: "",
+    price: "",
   });
   const [requestForm, setRequestForm] = useState({
     itemName: "",
@@ -130,10 +155,19 @@ const InventoryDashboard = () => {
     Record<string, { vendorId: string; eta: string; note: string }>
   >({});
   const [receiveQtyById, setReceiveQtyById] = useState<Record<string, string>>({});
+  const [vendors, setVendors] = useState<VendorUser[]>([]);
 
   useEffect(() => {
     void dispatch(fetchInventoryDashboard({ requestStatus: "all" }));
   }, [dispatch]);
+
+  useEffect(() => {
+    const hash = location.hash || "#overview";
+    const element = document.querySelector(hash);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     if (mutationSuccess || mutationError) {
@@ -146,9 +180,13 @@ const InventoryDashboard = () => {
 
   const totals = stats?.[0];
   const role = user?.role;
+  const isInventoryStaff = role === "inventory";
+  const isInventoryHeadView =
+    role === "inventory_head" || role === "manager" || role === "admin";
   const canApprove = canApproveRole(role);
   const canReceive = canReceiveRole(role);
   const canFulfill = canFulfillRole(role);
+  const canManageCatalog = isInventoryHeadView;
   const formUnits = itemForm.itemType === "prepared" ? PREPARED_UNITS : RAW_UNITS;
 
   const rawItems = useMemo(
@@ -172,10 +210,58 @@ const InventoryDashboard = () => {
   );
 
   const recentRequests = useMemo(() => requests.slice(0, 6), [requests]);
+  const receivingQueue = useMemo(
+    () => requests.filter((req) => ["vendor_assigned", "dispatched"].includes(req.status)),
+    [requests]
+  );
+  const readyToShelve = useMemo(
+    () => requests.filter((req) => req.status === "received"),
+    [requests]
+  );
+  const pendingApproval = useMemo(
+    () => requests.filter((req) => req.status === "requested"),
+    [requests]
+  );
+  const pendingVendorAssignment = useMemo(
+    () => requests.filter((req) => req.status === "approved"),
+    [requests]
+    );
+  const inTransitRequests = useMemo(
+    () => requests.filter((req) => ["vendor_assigned", "dispatched"].includes(req.status)),
+    [requests]
+  );
 
   const refreshData = async () => {
     await dispatch(fetchInventoryDashboard({ requestStatus: "all" }));
   };
+
+  useEffect(() => {
+    if (!canApprove) {
+      setVendors([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadVendors = async () => {
+      try {
+        const data = await getRestaurantVendors();
+        if (active) {
+          setVendors(data);
+        }
+      } catch {
+        if (active) {
+          setVendors([]);
+        }
+      }
+    };
+
+    void loadVendors();
+
+    return () => {
+      active = false;
+    };
+  }, [canApprove]);
 
   const resetItemForm = () => {
     setEditingItemId(null);
@@ -185,6 +271,7 @@ const InventoryDashboard = () => {
       quantity: "",
       unit: "kg",
       lowStockThreshold: "",
+      price: "",
     });
   };
 
@@ -202,6 +289,7 @@ const InventoryDashboard = () => {
   const handleSaveItem = async () => {
     const quantity = Number(itemForm.quantity);
     const lowStockThreshold = Number(itemForm.lowStockThreshold);
+    const price = Number(itemForm.price);
 
     if (!itemForm.itemName.trim() || !itemForm.unit.trim()) {
       return;
@@ -215,12 +303,17 @@ const InventoryDashboard = () => {
       return;
     }
 
+    if (itemForm.itemType === "prepared" && (!Number.isFinite(price) || price < 0)) {
+      return;
+    }
+
     const payload = {
       itemName: itemForm.itemName.trim(),
       itemType: itemForm.itemType,
       quantity,
       unit: itemForm.unit.trim(),
       lowStockThreshold,
+      price: itemForm.itemType === "prepared" ? price : 0,
     };
 
     if (editingItemId) {
@@ -247,6 +340,7 @@ const InventoryDashboard = () => {
       quantity: String(found.quantity ?? 0),
       unit: found.unit ?? (nextType === "prepared" ? "portion" : "kg"),
       lowStockThreshold: String(found.lowStockThreshold ?? 0),
+      price: String(found.price ?? 0),
     });
   };
 
@@ -334,6 +428,14 @@ const InventoryDashboard = () => {
                     In stock: <span className="font-semibold text-[#2A241B]">{item.quantity}</span>{" "}
                     {item.unit ?? ""} <span className="mx-2 text-[#B8AA94]">|</span> Threshold:{" "}
                     <span className="font-semibold text-[#2A241B]">{item.lowStockThreshold ?? 0}</span>
+                    {item.itemType === "prepared" && (
+                      <>
+                        <span className="mx-2 text-[#B8AA94]">|</span> Price:{" "}
+                        <span className="font-semibold text-[#2A241B]">
+                          Rs {Number(item.price ?? 0).toLocaleString("en-IN")}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg bg-white px-3 py-2 text-right shadow-sm">
@@ -362,21 +464,25 @@ const InventoryDashboard = () => {
                   <FiRefreshCw className="h-4 w-4" />
                   Adjust
                 </button>
-                <button
-                  onClick={() => startEditItem(item._id)}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9CCB7] bg-white px-4 text-sm font-semibold text-[#6B5C46]"
-                >
-                  <FiEdit3 className="h-4 w-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={() => void handleDeleteItem(item._id)}
-                  disabled={mutationStatus === "loading"}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E8C8BF] bg-[#FFF3EF] px-4 text-sm font-semibold text-[#9B3F2C] disabled:opacity-60"
-                >
-                  <FiTrash2 className="h-4 w-4" />
-                  Delete
-                </button>
+                {canManageCatalog && (
+                  <button
+                    onClick={() => startEditItem(item._id)}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9CCB7] bg-white px-4 text-sm font-semibold text-[#6B5C46]"
+                  >
+                    <FiEdit3 className="h-4 w-4" />
+                    Edit
+                  </button>
+                )}
+                {canManageCatalog && (
+                  <button
+                    onClick={() => void handleDeleteItem(item._id)}
+                    disabled={mutationStatus === "loading"}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E8C8BF] bg-[#FFF3EF] px-4 text-sm font-semibold text-[#9B3F2C] disabled:opacity-60"
+                  >
+                    <FiTrash2 className="h-4 w-4" />
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -396,7 +502,7 @@ const InventoryDashboard = () => {
       <div className="mt-4 space-y-3">
         {canApprove && ["approved", "vendor_assigned"].includes(req.status) && (
           <div className="grid gap-2 rounded-lg border border-[#E7DED0] bg-white p-3 md:grid-cols-[1fr_1fr_auto]">
-            <input
+            <select
               value={assignState.vendorId}
               onChange={(event) =>
                 setAssignById((prev) => ({
@@ -404,9 +510,18 @@ const InventoryDashboard = () => {
                   [req._id]: { ...assignState, vendorId: event.target.value },
                 }))
               }
-              placeholder="Vendor user id"
-              className="h-10 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B] placeholder:text-[#8A7A62]"
-            />
+              className="h-10 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B]"
+            >
+              <option value="">Select vendor</option>
+              {vendors.map((vendor) => {
+                const vendorId = vendor._id ?? vendor.id ?? "";
+                return (
+                  <option key={vendorId} value={vendorId}>
+                    {vendor.name} ({vendor.email})
+                  </option>
+                );
+              })}
+            </select>
             <input
               type="datetime-local"
               value={assignState.eta}
@@ -550,6 +665,281 @@ const InventoryDashboard = () => {
     );
   };
 
+  if (isInventoryStaff) {
+    return (
+      <SectionShell title="Inventory Operations" subtitle="Receiving and Stock Count">
+        <div className="space-y-6">
+          {(mutationError || mutationSuccess || error) && (
+            <div className="space-y-3">
+              {mutationError && (
+                <div className="rounded-lg border border-[#E6CAC3] bg-[#FFF2EE] px-4 py-3 text-sm text-[#9B3F2C]">
+                  {mutationError}
+                </div>
+              )}
+              {mutationSuccess && (
+                <div className="rounded-lg border border-[#C8DCCF] bg-[#EEF7F0] px-4 py-3 text-sm text-[#2F6A4A]">
+                  {mutationSuccess}
+                </div>
+              )}
+              {error && (
+                <div className="rounded-lg border border-[#E6CAC3] bg-[#FFF2EE] px-4 py-3 text-sm text-[#9B3F2C]">
+                  {error}
+                </div>
+              )}
+            </div>
+          )}
+
+          <section id="overview" className="grid gap-4 md:grid-cols-4">
+            <div className="rounded-lg border border-[#D7E3DA] bg-[#F3FAF5] p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#5A7568]">Receiving Queue</p>
+              <p className="mt-3 text-3xl font-semibold text-[#2A241B]">{receivingQueue.length}</p>
+              <p className="mt-1 text-sm text-[#5D6F66]">Deliveries waiting to be checked in.</p>
+            </div>
+            <div className="rounded-lg border border-[#C8DCCF] bg-[#EEF7F0] p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#2F6A4A]">Ready To Shelve</p>
+              <p className="mt-3 text-3xl font-semibold text-[#2A241B]">{readyToShelve.length}</p>
+              <p className="mt-1 text-sm text-[#5D6F66]">Received stock waiting to be fulfilled.</p>
+            </div>
+            <div className="rounded-lg border border-[#F0D2C0] bg-[#FFF7F2] p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#9B6B55]">Low Stock</p>
+              <p className="mt-3 text-3xl font-semibold text-[#2A241B]">{lowStock.length}</p>
+              <p className="mt-1 text-sm text-[#7A6255]">Shelf issues to report upward.</p>
+            </div>
+            <div className="rounded-lg border border-[#E4DCCF] bg-white/90 p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#8A7A62]">Counted Units</p>
+              <p className="mt-3 text-3xl font-semibold text-[#2A241B]">{totals?.totalStock ?? 0}</p>
+              <p className="mt-1 text-sm text-[#6B5C46]">Live floor count in system.</p>
+            </div>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+            <div className="space-y-6">
+              <section className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#8A7A62]">Shift Focus</p>
+                    <h4 className="mt-1 text-xl font-semibold text-[#2A241B]">Today&apos;s Floor Priorities</h4>
+                  </div>
+                  <span className="rounded-full bg-[#F7F1E8] px-3 py-1 text-xs font-semibold text-[#6B5C46]">
+                    {receivingQueue.length + lowStock.length + readyToShelve.length} tasks
+                  </span>
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-xl border border-[#D7E3DA] bg-[#F3FAF5] p-4">
+                    <div className="flex items-center gap-2">
+                      <FiTruck className="h-4 w-4 text-[#3F6F5B]" />
+                      <h5 className="font-semibold text-[#2A241B]">Receive Deliveries</h5>
+                    </div>
+                    <p className="mt-3 text-sm text-[#5D6F66]">
+                      Match incoming stock, enter received quantity, and move it into usable stock.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[#E7DED0] bg-[#FCFAF6] p-4">
+                    <div className="flex items-center gap-2">
+                      <FiRefreshCw className="h-4 w-4 text-[#6B5C46]" />
+                      <h5 className="font-semibold text-[#2A241B]">Update Bin Counts</h5>
+                    </div>
+                    <p className="mt-3 text-sm text-[#6B5C46]">
+                      Adjust stock after prep, wastage, and physical count checks during the shift.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[#F1D8C7] bg-[#FFF7F2] p-4">
+                    <div className="flex items-center gap-2">
+                      <FiAlertTriangle className="h-4 w-4 text-[#B85C38]" />
+                      <h5 className="font-semibold text-[#2A241B]">Report Shortages</h5>
+                    </div>
+                    <p className="mt-3 text-sm text-[#7A6255]">
+                      Raise shortage requests early so the inventory head can approve and source stock.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <div id="stock-control" className="scroll-mt-28">
+                {renderInventoryGroup("Raw Stock Count", "Counting Desk", rawItems)}
+              </div>
+              {renderInventoryGroup("Prepared Stock Count", "Kitchen Hand-Off", preparedItems)}
+
+              <section
+                id="request-flow"
+                className="scroll-mt-28 rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[#8A7A62]">Receiving Console</p>
+                    <h4 className="mt-1 text-xl font-semibold text-[#2A241B]">Goods and Request Hand-Off</h4>
+                  </div>
+                  <span className="rounded-full bg-[#F7F1E8] px-3 py-1 text-xs font-semibold text-[#6B5C46]">
+                    {requests.length} tracked
+                  </span>
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  {!requests.length && (
+                    <div className="rounded-lg border border-dashed border-[#E4DCCF] bg-[#FCFAF6] px-4 py-5 text-sm text-[#8A7A62]">
+                      No inventory requests found.
+                    </div>
+                  )}
+
+                  {requests.map((req) => (
+                    <div key={req._id} className="rounded-xl border border-[#E7DED0] bg-[#FCFAF6] p-4">
+                      {(() => {
+                        const latestHeadUpdate = getLatestHeadUpdate(req);
+
+                        return (
+                          <>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h5 className="text-base font-semibold text-[#2A241B]">{req.itemName}</h5>
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusClasses(
+                                req.status
+                              )}`}
+                            >
+                              {formatRequestStatus(req.status)}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm text-[#6B5C46]">
+                            Requested <span className="font-semibold text-[#2A241B]">{req.requestedQty}</span>
+                            <span className="mx-2 text-[#B8AA94]">|</span>
+                            Available <span className="font-semibold text-[#2A241B]">{req.availableQty}</span>
+                          </p>
+                          {latestHeadUpdate ? (
+                            <p className="mt-2 text-sm text-[#5D6F66]">
+                              Head updated this request to{" "}
+                              <span className="font-semibold text-[#2A241B]">
+                                {formatRequestStatus(latestHeadUpdate.status)}
+                              </span>{" "}
+                              by {latestHeadUpdate.changedBy?.name ?? "inventory head"} on{" "}
+                              <span className="font-semibold text-[#2A241B]">
+                                {formatTimelineDate(latestHeadUpdate.changedAt)}
+                              </span>
+                              .
+                            </p>
+                          ) : (
+                            <p className="mt-2 text-sm text-[#8A7A62]">
+                              Waiting for inventory head update.
+                            </p>
+                          )}
+                        </div>
+                        <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-[#8A7A62]">Assigned Vendor</p>
+                          <p className="mt-1 text-sm font-semibold text-[#2A241B]">
+                            {req.assignedVendorId?.name ?? "Waiting for head"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {(req.notes || req.eta) && (
+                        <div className="mt-3 rounded-lg border border-[#E7DED0] bg-white px-3 py-3 text-sm text-[#6B5C46]">
+                          {req.notes && <p>Notes: {req.notes}</p>}
+                          {req.eta && <p className={req.notes ? "mt-1" : ""}>ETA: {req.eta}</p>}
+                        </div>
+                      )}
+
+                      {renderRequestActions(req)}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <div className="space-y-6">
+              <section className="rounded-lg border border-[#D6B26E] bg-[#2A241B] p-6 text-[#F7F1E8] shadow-lg">
+                <p className="text-xs uppercase tracking-[0.3em] text-[#E4C992]">Shift Notes</p>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <p className="text-sm text-[#E9DDC9]">Next urgent count</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {criticalItems[0]?.itemName ?? "No critical items right now"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#6A5736] bg-[#342D21] px-4 py-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-[#E9DDC9]">Waiting to receive</span>
+                      <span className="font-semibold">{receivingQueue.length}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="text-[#E9DDC9]">Ready to shelve</span>
+                      <span className="font-semibold">{readyToShelve.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <FiSend className="h-4 w-4 text-[#8A6A3D]" />
+                  <h4 className="text-lg font-semibold text-[#2A241B]">Raise Shortage Request</h4>
+                </div>
+                <p className="mt-2 text-sm text-[#6B5C46]">
+                  Staff should flag low stock and missing items here so the head can approve and source stock.
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  <input
+                    value={requestForm.itemName}
+                    onChange={(event) =>
+                      setRequestForm((prev) => ({ ...prev, itemName: event.target.value }))
+                    }
+                    placeholder="Item name"
+                    className="h-11 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B] placeholder:text-[#8A7A62]"
+                  />
+                  <input
+                    type="number"
+                    value={requestForm.requestedQty}
+                    onChange={(event) =>
+                      setRequestForm((prev) => ({ ...prev, requestedQty: event.target.value }))
+                    }
+                    placeholder="Requested quantity"
+                    className="h-11 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B] placeholder:text-[#8A7A62]"
+                  />
+                  <input
+                    type="number"
+                    value={requestForm.availableQty}
+                    onChange={(event) =>
+                      setRequestForm((prev) => ({ ...prev, availableQty: event.target.value }))
+                    }
+                    placeholder="Available quantity on shelf"
+                    className="h-11 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B] placeholder:text-[#8A7A62]"
+                  />
+                  <textarea
+                    value={requestForm.notes}
+                    onChange={(event) =>
+                      setRequestForm((prev) => ({ ...prev, notes: event.target.value }))
+                    }
+                    placeholder="What was checked, what is missing, any urgency?"
+                    rows={4}
+                    className="rounded-lg border border-[#E0D5C3] bg-white px-3 py-3 text-sm text-[#2A241B] placeholder:text-[#8A7A62]"
+                  />
+                  <button
+                    onClick={() => void handleCreateRequest()}
+                    disabled={mutationStatus === "loading"}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#2A241B] px-4 text-sm font-semibold text-[#F7F1E8] disabled:opacity-60"
+                  >
+                    <FiArrowRight className="h-4 w-4" />
+                    Send To Inventory Head
+                  </button>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          {status === "loading" && (
+            <div className="flex items-center gap-3 rounded-lg border border-[#E4DCCF] bg-white/80 px-4 py-3 text-sm text-[#6B5C46]">
+              <ClipLoader size={16} color="#6B5C46" />
+              Refreshing inventory operations...
+            </div>
+          )}
+        </div>
+      </SectionShell>
+    );
+  }
+
   if (userLoading) {
     return <div className="p-6 text-sm text-[#6B5C46]">Loading inventory dashboard...</div>;
   }
@@ -557,7 +947,10 @@ const InventoryDashboard = () => {
   return (
     <SectionShell title="Inventory" subtitle="Operations Control">
       <div className="space-y-8">
-        <section className="overflow-hidden rounded-lg border border-[#E4DCCF] bg-white/90 shadow-sm">
+        <section
+          id="overview"
+          className="scroll-mt-28 overflow-hidden rounded-lg border border-[#E4DCCF] bg-white/90 shadow-sm"
+        >
           <div className="relative px-6 py-6">
             <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_right,_rgba(210,173,104,0.22),_transparent_45%),radial-gradient(circle_at_left,_rgba(63,111,91,0.1),_transparent_35%)]" />
             <div className="relative flex flex-wrap items-start justify-between gap-4">
@@ -594,14 +987,14 @@ const InventoryDashboard = () => {
                 <p className="mt-1 text-sm text-[#6B5C46]">Items already below threshold.</p>
               </div>
               <div className="rounded-lg border border-[#E4DCCF] bg-[#F9F4EC] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-[#8A7A62]">Open Flow</p>
-                <p className="mt-2 text-2xl font-semibold text-[#2A241B]">{openRequests.length}</p>
-                <p className="mt-1 text-sm text-[#6B5C46]">Requests still moving through operations.</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-[#8A7A62]">Pending Approval</p>
+                <p className="mt-2 text-2xl font-semibold text-[#2A241B]">{pendingApproval.length}</p>
+                <p className="mt-1 text-sm text-[#6B5C46]">Shortage requests waiting for a head decision.</p>
               </div>
               <div className="rounded-lg border border-[#E4DCCF] bg-[#F9F4EC] px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-[#8A7A62]">Reorder Watch</p>
-                <p className="mt-2 text-2xl font-semibold text-[#2A241B]">{reorder.length}</p>
-                <p className="mt-1 text-sm text-[#6B5C46]">Items that should be reviewed soon.</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-[#8A7A62]">Vendor Queue</p>
+                <p className="mt-2 text-2xl font-semibold text-[#2A241B]">{pendingVendorAssignment.length}</p>
+                <p className="mt-1 text-sm text-[#6B5C46]">Approved requests still waiting for vendor assignment.</p>
               </div>
             </div>
           </div>
@@ -670,8 +1063,8 @@ const InventoryDashboard = () => {
             <section className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-[#8A7A62]">Risk Console</p>
-                  <h4 className="mt-1 text-xl font-semibold text-[#2A241B]">Operational Alerts</h4>
+                  <p className="text-xs uppercase tracking-[0.24em] text-[#8A7A62]">Decision Console</p>
+                  <h4 className="mt-1 text-xl font-semibold text-[#2A241B]">Approval and Escalation</h4>
                 </div>
                 <span className="rounded-full bg-[#F7F1E8] px-3 py-1 text-xs font-semibold text-[#6B5C46]">
                   {lowStock.length + reorder.length} signals
@@ -737,10 +1130,15 @@ const InventoryDashboard = () => {
               </div>
             </section>
 
-            {renderInventoryGroup("Raw Inventory", "Stock Ledger", rawItems)}
+            <div id="stock-control" className="scroll-mt-28">
+              {renderInventoryGroup("Raw Inventory", "Stock Ledger", rawItems)}
+            </div>
             {renderInventoryGroup("Prepared Inventory", "Ready Stock", preparedItems)}
 
-            <section className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
+            <section
+              id="request-flow"
+              className="scroll-mt-28 rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm"
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-[#8A7A62]">Request Pipeline</p>
@@ -803,8 +1201,8 @@ const InventoryDashboard = () => {
           </div>
 
           <div className="space-y-6">
-            <section className="rounded-lg border border-[#D6B26E] bg-[#2A241B] p-6 text-[#F7F1E8] shadow-lg">
-              <p className="text-xs uppercase tracking-[0.3em] text-[#E4C992]">Operations Focus</p>
+              <section className="rounded-lg border border-[#D6B26E] bg-[#2A241B] p-6 text-[#F7F1E8] shadow-lg">
+              <p className="text-xs uppercase tracking-[0.3em] text-[#E4C992]">Control Priorities</p>
               <div className="mt-4 space-y-4">
                 <div>
                   <p className="text-sm text-[#E9DDC9]">Most urgent now</p>
@@ -818,10 +1216,8 @@ const InventoryDashboard = () => {
                     <span className="font-semibold">{criticalItems.length}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-[#E9DDC9]">Requests to close</span>
-                    <span className="font-semibold">
-                      {requests.filter((req) => ["fulfilled", "received"].includes(req.status)).length}
-                    </span>
+                    <span className="text-[#E9DDC9]">In transit</span>
+                    <span className="font-semibold">{inTransitRequests.length}</span>
                   </div>
                 </div>
               </div>
@@ -855,6 +1251,7 @@ const InventoryDashboard = () => {
                       ...prev,
                       itemType: nextType,
                       unit: nextType === "prepared" ? "portion" : "kg",
+                      price: nextType === "prepared" ? prev.price : "",
                     }));
                   }}
                   className="h-11 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B]"
@@ -886,6 +1283,19 @@ const InventoryDashboard = () => {
                     ))}
                   </select>
                 </div>
+                {itemForm.itemType === "prepared" && (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={itemForm.price}
+                    onChange={(event) =>
+                      setItemForm((prev) => ({ ...prev, price: event.target.value }))
+                    }
+                    placeholder="Price"
+                    className="h-11 rounded-lg border border-[#E0D5C3] bg-white px-3 text-sm text-[#2A241B] placeholder:text-[#8A7A62]"
+                  />
+                )}
                 <input
                   type="number"
                   value={itemForm.lowStockThreshold}
@@ -917,13 +1327,13 @@ const InventoryDashboard = () => {
             </section>
 
             <section className="rounded-lg border border-[#E4DCCF] bg-white/90 p-6 shadow-sm">
-              <div className="flex items-center gap-2">
-                <FiSend className="h-4 w-4 text-[#8A6A3D]" />
-                <h4 className="text-lg font-semibold text-[#2A241B]">Create Inventory Request</h4>
-              </div>
-              <p className="mt-2 text-sm text-[#6B5C46]">
-                Raise shortages early so the request pipeline stays predictable.
-              </p>
+                <div className="flex items-center gap-2">
+                  <FiSend className="h-4 w-4 text-[#8A6A3D]" />
+                  <h4 className="text-lg font-semibold text-[#2A241B]">Raise Strategic Procurement Request</h4>
+                </div>
+                <p className="mt-2 text-sm text-[#6B5C46]">
+                Use this when stock needs escalation, planned replenishment, or a sourcing decision from the head side.
+                </p>
 
               <div className="mt-5 grid gap-3">
                 <input

@@ -7,6 +7,7 @@ type InventoryInput = {
   quantity: number;
   unit: string;
   lowStockThreshold: number;
+  price?: number;
 };
 
 type InventoryDetailsUpdateInput = {
@@ -15,6 +16,7 @@ type InventoryDetailsUpdateInput = {
   quantity: number;
   unit: string;
   lowStockThreshold: number;
+  price?: number;
 };
 
 type Requester = {
@@ -87,6 +89,7 @@ export const updateInventoryItemDetailsService = async (
       quantity: data.quantity,
       unit: data.unit,
       lowStockThreshold: data.lowStockThreshold,
+      price: data.price ?? 0,
     },
     { new: true }
   );

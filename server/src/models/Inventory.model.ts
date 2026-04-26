@@ -7,6 +7,7 @@ export interface IInventory extends Document {
   quantity: number;
   unit: string;
   lowStockThreshold: number;
+  price?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -30,6 +31,7 @@ const inventorySchema = new mongoose.Schema<IInventory>(
     quantity: { type: Number, required: true },
     unit: { type: String, required: true, trim: true },
     lowStockThreshold: { type: Number, required: true, default: 0 },
+    price: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
